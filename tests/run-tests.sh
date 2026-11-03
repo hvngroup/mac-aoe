@@ -150,11 +150,35 @@ assert_eq "renderer choice survives display changes" "gdi" "$(grep '^renderer=' 
 run update; assert_file "update keeps cnc-ddraw" "$GAME/ddraw.dll"
 check_not "update keeps wndmode.dll off in cnc mode" test -e "$GAME/data/wndmode.dll"
 run directplay; assert_eq "DirectPlay defaults to Wine's" "wine" "$(cat "$WORK/out")"
-run directplay native; run play multi; run logs
-assert_contains "native DirectPlay loads the game's dplayx.dll (with cnc-ddraw)" "$WORK/out" "WINEDLLOVERRIDES=ddraw=n,b;dplayx=n,b"
+# Stand-in for Microsoft's DirectX redistributable: bsdtar auto-detects the
+# format, so a zip holding a zip named dxnt.cab exercises the same path.
+mkdir -p "$WORK/dx"
+for f in dplayx.dll dpwsockx.dll dpmodemx.dll dplaysvr.exe; do echo "ms-$f" > "$WORK/dx/$f"; done
+(cd "$WORK/dx" && zip -q dxnt.cab dplayx.dll dpwsockx.dll dpmodemx.dll dplaysvr.exe && zip -q ../dxredist.exe dxnt.cab)
+SYS32="$PREFIX/drive_c/windows/syswow64"
+echo game-dplayx > "$GAME/dplayx.dll"
+AOE_DXREDIST_URL="file://$WORK/dxredist.exe" AOE_DXREDIST_SHA256="$(sha256 "$WORK/dxredist.exe")" run directplay microsoft; rc=$?
+assert_eq "directplay microsoft succeeds" "0" "$rc"
+[ "$rc" -eq 0 ] || cat "$WORK/out"
+check_not "downloaded DirectX package is removed after extraction" ls "$AOE_HOME/cache"/directx_feb2010_redist-*.exe
+assert_eq "Microsoft dplayx.dll installed in the 32-bit system folder" "ms-dplayx.dll" "$(cat "$SYS32/dplayx.dll" 2>/dev/null)"
+assert_eq "Microsoft dpwsockx.dll installed" "ms-dpwsockx.dll" "$(cat "$SYS32/dpwsockx.dll" 2>/dev/null)"
+assert_eq "dplaysvr.exe installed" "ms-dplaysvr.exe" "$(cat "$SYS32/dplaysvr.exe" 2>/dev/null)"
+check_not "the game's lone XP dplayx.dll is switched off" test -e "$GAME/dplayx.dll"
+run play multi; run logs
+assert_contains "microsoft mode prefers the native DirectPlay set" "$WORK/out" "WINEDLLOVERRIDES=ddraw=n,b;dplayx=n,b;dpwsockx=n,b;dpmodemx=n,b;dplaysvr.exe=n,b"
+echo wine-placeholder > "$SYS32/dplayx.dll"
+run update; assert_eq "update re-applies DirectPlay without downloading again" "ms-dplayx.dll" "$(cat "$SYS32/dplayx.dll" 2>/dev/null)"
+check_not "update keeps the game's dplayx.dll off" test -e "$GAME/dplayx.dll"
+run directplay native; assert_eq "legacy 'native' maps to microsoft" "microsoft" "$("$AOE_MAC" directplay)"
 run directplay bogus; assert_eq "directplay rejects unknown values" "1" "$?"
 run directplay wine; run play multi; run logs
 check_not "Wine DirectPlay sets no dplayx override" grep -q "dplayx=n,b" "$WORK/out"
+assert_eq "wine mode restores the game's dplayx.dll" "game-dplayx" "$(cat "$GAME/dplayx.dll" 2>/dev/null)"
+rm -rf "$SYS32"/*.aoe-mac-ms
+AOE_DXREDIST_URL="file://$WORK/dxredist.exe" AOE_DXREDIST_SHA256=0000 run directplay microsoft
+assert_eq "DirectX download rejected on checksum mismatch" "1" "$?"
+assert_eq "failed install leaves DirectPlay on wine" "wine" "$("$AOE_MAC" directplay)"
 run display fullscreen; check_not "wndmode modes switch cnc-ddraw off" test -e "$GAME/ddraw.dll"
 assert_file "wndmode modes restore wndmode.dll" "$GAME/data/wndmode.dll"
 run play; run logs

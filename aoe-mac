@@ -43,8 +43,9 @@ Chơi
   renderer [gdi|opengl|direct3d9|auto]
                               Cách cnc-ddraw vẽ hình (mặc định gdi: ô nhập tên,
                               chat hiển thị đúng trên Mac)
-  directplay [wine|native]    DirectPlay cho chơi mạng: của Wine (mặc định) hoặc
-                              dplayx.dll của Microsoft đi kèm game
+  directplay [wine|microsoft] DirectPlay cho chơi mạng. wine (mặc định): vào phòng
+                              được, chưa tạo phòng được. microsoft: bộ DirectPlay
+                              đầy đủ của Microsoft (tải gói DirectX 2010, ~105 MB)
   stop                        Dừng game đang treo (đóng mọi tiến trình Wine của game)
   winecfg                     Mở cấu hình Wine (âm thanh, đồ hoạ)
 

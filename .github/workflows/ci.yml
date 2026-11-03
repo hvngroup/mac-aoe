@@ -28,6 +28,6 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wine wine32:i386 wine64 xvfb rsync
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wine wine32:i386 wine64 xvfb rsync libarchive-tools zip
       - name: tests (fake Wine + real Wine registry import)
         run: AOE_TEST_REAL_WINE=1 xvfb-run -a bash tests/run-tests.sh

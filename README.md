@@ -57,7 +57,8 @@ Launchpad, rồi chọn **Chơi đơn**, **Chơi mạng LAN**, **Đổi bản c�
 |------|----------|
 | `aoe-mac setup` | Cài Wine (nếu chưa có) và game |
 | `aoe-mac play` | Chơi đơn (`empires.exe`, có cheat, dân số tối đa 1000) |
-| `aoe-mac play multi` | Chơi mạng (`EMPIRESX.EXE`, chống cheat). Máy Mac vào được phòng do máy khác tạo, nhưng chưa tạo được phòng: giới hạn của Wine, xem [Xử lý sự cố](docs/troubleshooting.md#chơi-mạng-lan) |
+| `aoe-mac play multi` | Chơi mạng (`EMPIRESX.EXE`, chống cheat). Mặc định vào được phòng do máy khác tạo, chưa tạo được phòng |
+| `aoe-mac directplay microsoft` | Dùng bộ DirectPlay đầy đủ của Microsoft để thử tạo phòng trên Mac (`wine` để quay lại). Xem [Chơi mạng LAN](docs/troubleshooting.md#chơi-mạng-lan) |
 | `aoe-mac balance de` | Đổi bản cân bằng: `ror`, `de`, `mace`, `original` |
 | `aoe-mac balance` | Xem bản cân bằng đang dùng |
 | `aoe-mac display cnc` | Toàn màn hình qua cnc-ddraw, mặc định trên Mac. `cnc-window` để chơi trong cửa sổ |

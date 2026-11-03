@@ -176,6 +176,10 @@ apply_preferences() {
     config_set DISPLAY_MODE "$display"
   fi
   [ -n "$display" ] && set_display "$display"
+  local dplay
+  dplay="$(config_get DIRECTPLAY)"
+  [ "$dplay" = "native" ] && { dplay=microsoft; config_set DIRECTPLAY microsoft; }
+  [ -n "$dplay" ] && set_directplay "$dplay"
   return 0
 }
 
@@ -365,22 +369,119 @@ current_display() {
   esac
 }
 
-# DirectPlay used for multiplayer: Wine's own implementation, or Microsoft's
-# dplayx.dll (Windows XP build) that ships in the game folder.
+# --- DirectPlay (multiplayer) --------------------------------------------------
+#   wine:      Wine's own DirectPlay. Joins games but cannot host: its TCP/IP
+#              provider returns DPERR_UNSUPPORTED for session creation.
+#   microsoft: the complete DirectPlay 5.3 set (dplayx, dpwsockx, dpmodemx,
+#              dplaysvr) from Microsoft's DirectX February 2010 redistributable,
+#              installed into the prefix's 32-bit system folder, as winetricks'
+#              "directplay" verb does. The game's own dplayx.dll (XP
+#              5.1, without a matching dpwsockx) is switched off because the
+#              game folder is searched first; on its own it hung the game.
+AOE_DXREDIST_SHA256_DEFAULT="f6d191e89a963d7cca34f169d30f49eab99c1ed3bb92da73ec43617caaa1e93f"
+# Microsoft removed the original download; these are the archive.org copy of
+# it (what winetricks uses) and the winetricks fallback mirror. Same file,
+# verified by SHA-256.
+AOE_DXREDIST_URLS_DEFAULT="https://web.archive.org/web/20100205000000id_/https://download.microsoft.com/download/E/E/1/EE17FF74-6C45-4575-9CF4-7FC2597ACD18/directx_feb2010_redist.exe https://files.holarse-linuxgaming.de/mirrors/microsoft/directx_feb2010_redist.exe"
+DPLAY_MS_FILES="dplayx.dll dpwsockx.dll dpmodemx.dll dplaysvr.exe"
+DPLAY_MS_OVERRIDES="dplayx=n,b;dpwsockx=n,b;dpmodemx=n,b;dplaysvr.exe=n,b"
+
+# 32-bit system folder of the prefix (syswow64 on 64-bit/WoW64 prefixes).
+prefix_sys32_dir() {
+  if [ -d "$AOE_PREFIX/drive_c/windows/syswow64" ]; then
+    printf '%s\n' "$AOE_PREFIX/drive_c/windows/syswow64"
+  else
+    printf '%s\n' "$AOE_PREFIX/drive_c/windows/system32"
+  fi
+}
+
+# bsdtar reads Microsoft's self-extracting CAB files; macOS's tar is bsdtar.
+cab_tool() {
+  if command -v bsdtar >/dev/null 2>&1; then echo bsdtar
+  elif is_macos; then echo tar
+  else die "Cần bsdtar để giải nén gói DirectX (Ubuntu/Debian: apt install libarchive-tools)."
+  fi
+}
+
+directplay_ms_download() {
+  local sha urls url dest
+  sha="${AOE_DXREDIST_SHA256:-$AOE_DXREDIST_SHA256_DEFAULT}"
+  urls="${AOE_DXREDIST_URL:-$AOE_DXREDIST_URLS_DEFAULT}"
+  dest="$AOE_CACHE/directx_feb2010_redist-$sha.exe"
+  if [ -f "$dest" ] && [ "$(sha256_of "$dest")" = "$sha" ]; then
+    printf '%s\n' "$dest"; return 0
+  fi
+  need_cmd curl "Cần curl để tải gói DirectX."
+  mkdir -p "$AOE_CACHE"
+  for url in $urls; do
+    log "Tải DirectX (Microsoft, khoảng 105 MB): $url"
+    if curl -fL --retry 2 --progress-bar -o "$dest.part" "$url" && [ "$(sha256_of "$dest.part")" = "$sha" ]; then
+      mv "$dest.part" "$dest"
+      printf '%s\n' "$dest"; return 0
+    fi
+    warn "Không tải được hoặc SHA-256 không khớp, thử nguồn khác."
+    rm -f "$dest.part"
+  done
+  die "Không tải được gói DirectX từ nguồn nào."
+}
+
+directplay_ms_install() {
+  local redist tool work sys f
+  sys="$(prefix_sys32_dir)"
+  local all_present=1
+  for f in $DPLAY_MS_FILES; do
+    [ -f "$sys/$f.aoe-mac-ms" ] || all_present=0
+  done
+  if [ "$all_present" -eq 0 ]; then
+    redist="$(directplay_ms_download)"
+    tool="$(cab_tool)"
+    work="$AOE_CACHE/dplay-extract"
+    rm -rf "$work"; mkdir -p "$work"
+    "$tool" -xf "$redist" -C "$work" dxnt.cab || die "Không tách được dxnt.cab từ gói DirectX."
+    # shellcheck disable=SC2086  # file list is a fixed set of names
+    (cd "$work" && "$tool" -xf dxnt.cab $DPLAY_MS_FILES) || die "Không tách được file DirectPlay từ dxnt.cab."
+    for f in $DPLAY_MS_FILES; do
+      [ -s "$work/$f" ] || die "Thiếu $f trong gói DirectX."
+      # Keep a pristine copy so re-applying never needs the download again.
+      cp -f "$work/$f" "$sys/$f.aoe-mac-ms"
+    done
+    # The pristine copies above are all that is needed from now on.
+    rm -rf "$work" "$redist"
+  fi
+  for f in $DPLAY_MS_FILES; do
+    cp -f "$sys/$f.aoe-mac-ms" "$sys/$f"
+  done
+}
+
+set_directplay() {
+  case "$1" in
+    wine) file_enable "$AOE_GAME_DIR/dplayx.dll" ;;
+    microsoft)
+      directplay_ms_install
+      file_disable "$AOE_GAME_DIR/dplayx.dll" ;;
+    *) die "Giá trị không hợp lệ: $1 (chọn: wine, microsoft)" ;;
+  esac
+}
+
 cmd_directplay() {
   require_game
-  case "${1:-}" in
-    "") config_get DIRECTPLAY wine ;;
-    wine|native)
-      config_set DIRECTPLAY "$1"
-      log "DirectPlay: $1"
-      if [ "$1" = "native" ]; then
-        warn "Trên macOS (Wine 11.21), dplayx.dll của Microsoft đi kèm game đã làm game treo lúc khởi động. Quay lại bằng: aoe-mac directplay wine"
-      else
-        log "DirectPlay của Wine vào được phòng (Join) nhưng chưa tạo được phòng (Create): Wine chưa viết phần này."
-      fi ;;
-    *) die "Giá trị không hợp lệ: $1 (chọn: wine, native)" ;;
+  local mode="${1:-}"
+  # "native" (0.2.x) meant the game's lone XP dplayx.dll, which hung; map it
+  # to the complete Microsoft set.
+  [ "$mode" = "native" ] && mode=microsoft
+  case "$mode" in
+    "") config_get DIRECTPLAY wine; return 0 ;;
+    wine|microsoft) ;;
+    *) die "Giá trị không hợp lệ: $mode (chọn: wine, microsoft)" ;;
   esac
+  set_directplay "$mode"
+  config_set DIRECTPLAY "$mode"
+  log "DirectPlay: $mode"
+  if [ "$mode" = "wine" ]; then
+    log "DirectPlay của Wine vào được phòng (Join) nhưng chưa tạo được phòng (Create)."
+  else
+    log "Khi tạo phòng, nếu macOS hỏi cho phép 'wine' nhận kết nối mạng, hãy chọn Cho phép."
+  fi
 }
 
 # Modes that do not go through wndmode.dll need its flags passed directly.
@@ -422,9 +523,8 @@ cmd_play() {
     # Wine prefers its builtin ddraw; load cnc-ddraw from the game folder.
     cnc|cnc-window) overrides="ddraw=n,b" ;;
   esac
-  if [ "$(config_get DIRECTPLAY wine)" = "native" ]; then
-    # Microsoft's dplayx.dll shipped in the game folder instead of Wine's.
-    overrides="${overrides:+$overrides;}dplayx=n,b"
+  if [ "$(config_get DIRECTPLAY wine)" = "microsoft" ]; then
+    overrides="${overrides:+$overrides;}$DPLAY_MS_OVERRIDES"
   fi
   if [ -n "$overrides" ]; then
     WINEDLLOVERRIDES="$overrides${WINEDLLOVERRIDES:+;$WINEDLLOVERRIDES}"
