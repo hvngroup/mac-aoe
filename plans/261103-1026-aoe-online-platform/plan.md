@@ -1,7 +1,7 @@
 ---
-title: "Nền tảng chơi AoE online cho Mac và Windows"
+title: "HVN AOE: nền tảng chơi AoE online cho Mac và Windows"
 description: "Máy chủ sảnh và mạng ảo để người chơi Mac và Windows tạo phòng, vào phòng, chat, kết bạn và xếp hạng ELO khi chơi AoE RoR qua Internet"
-status: pending
+status: in-progress
 priority: P2
 effort: 13w
 branch: claude/blissful-mayer-91sloi
@@ -11,7 +11,7 @@ blocks: []
 created: 2026-11-03
 ---
 
-# Nền tảng chơi AoE online (tên dự án tạm: AoE Online)
+# HVN AOE: nền tảng chơi AoE online
 
 ## Mục tiêu
 
@@ -27,6 +27,11 @@ Internet. Trải nghiệm giống Ego Play. Thêm danh sách bạn bè, lời m�
 | Quy mô bản đầu | Dưới 200 người chơi cùng lúc |
 | Tài khoản | Tài khoản riêng (email/số điện thoại và mật khẩu) và đăng nhập Google |
 | Tính năng bản đầu | Sảnh và phòng, chat sảnh/phòng, bấm Join là vào game, xếp hạng ELO, bạn bè và lời mời |
+| Tên sản phẩm | HVN AOE |
+| Tên miền | `aoe.hvn.works` (API, WebSocket và WireGuard endpoint `aoe.hvn.works:51820/udp`) |
+| Phát hành | Beta nội bộ trước, chưa mở công khai |
+| Ký app | Mac: ký Developer ID và notarize bằng tài khoản Apple Developer của HVN. Windows: beta chạy bản chưa ký, chấp nhận cảnh báo SmartScreen |
+| Người thử phase 1 | Có máy Windows và người thử ở hai nơi |
 
 ## Ràng buộc
 
@@ -135,8 +140,8 @@ vào.
 | R1 | DirectPlay giữa Mac (Wine + DirectPlay Microsoft) và Windows không tương thích | Cao | Phase 1 thử thật Mac↔Windows trước mọi việc khác |
 | R2 | Lobby launch không chạy dưới Wine | Trung bình | Phase 1 thử. Dự phòng: app tự điền IP chủ phòng, người chơi bấm Join trong game |
 | R3 | Game không báo kết quả trận cho lobby, nên không tự tính ELO được | Trung bình | Phase 1 kiểm tra lobby message. Dự phòng: hai bên cùng xác nhận kết quả trong app |
-| R4 | Helper mạng cần quyền admin. Mac cần ký Developer ID và notarize, Windows cần chữ ký code | Trung bình | Phase 7 làm ký số. Thử nghiệm nội bộ dùng bản chưa ký |
-| R5 | Bản quyền: game AoE thuộc Microsoft. Phân phối file game công khai qua nền tảng thương mại có rủi ro pháp lý | Cao | Cần pháp chế HVN rà soát trước khi mở công khai. Một phương án là người chơi tự cung cấp bản game của mình |
+| R4 | Helper mạng cần quyền admin. Mac cần ký Developer ID và notarize | Thấp | HVN đã có Apple Developer. Windows beta chưa ký: hướng dẫn "More info, Run anyway" trong tài liệu beta |
+| R5 | Bản quyền: game AoE thuộc Microsoft. Phân phối file game công khai qua nền tảng thương mại có rủi ro pháp lý | Cao khi mở công khai, thấp khi beta nội bộ | Beta nội bộ giới hạn người tham gia. Pháp chế HVN rà soát trước khi mở công khai. Một phương án là người chơi tự cung cấp bản game của mình |
 | R6 | Pháp lý vận hành tại Việt Nam: dịch vụ trò chơi điện tử và mạng xã hội (Nghị định 147/2024/NĐ-CP), dữ liệu cá nhân (Nghị định 13/2023/NĐ-CP, Luật Bảo vệ dữ liệu cá nhân) | Cao | Pháp chế xác nhận loại giấy phép cần có trước khi mở công khai. Beta nội bộ giới hạn người tham gia |
 | R7 | Lạm dụng: spam chat, gian lận ELO, dùng mạng ảo để tấn công máy người khác | Trung bình | Cách ly theo phòng (phase 3), giới hạn tốc độ, báo cáo và chặn người dùng (phase 7) |
 
@@ -152,10 +157,8 @@ vào.
 
 ## Câu hỏi còn mở
 
-1. Tên sản phẩm và tên miền (ví dụ `play.hvn.vn`)? Do công ty thành viên nào vận hành (HVN Digital, HVN Software)?
-2. Mở công khai cho cộng đồng hay chỉ beta nội bộ trước? Câu trả lời quyết định thời điểm cần xử lý R5 và R6.
-3. Có máy Windows và nhóm người thử ở hai thành phố cho phase 1 không?
-4. HVN có sẵn tài khoản Apple Developer (Developer ID) và chứng chỉ ký code Windows chưa?
+1. Công ty thành viên nào vận hành HVN AOE (HVN Digital, HVN Software)? Chỉ cần trả lời trước khi mở công khai.
+2. VPS cho `aoe.hvn.works`: dùng VPS HVN Cloud sẵn có hay tạo mới? Phase 1 cần một VPS Ubuntu 24.04 có IP công khai và mở cổng 51820/UDP.
 
 ---
 

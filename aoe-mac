@@ -51,6 +51,8 @@ Chơi
                               được, chưa tạo phòng được. microsoft: bộ DirectPlay
                               đầy đủ của Microsoft (tải gói DirectX 2010, ~105 MB)
   stop                        Dừng game đang treo (đóng mọi tiến trình Wine của game)
+  lobby host|join ...         Mở game vào thẳng phòng qua DirectPlay Lobby (thử nghiệm
+                              chơi online, xem docs/thu-nghiem-choi-online.md)
   winecfg                     Mở cấu hình Wine (âm thanh, đồ hoạ)
 
 Hệ thống
@@ -146,6 +148,7 @@ main() {
     tweak) cmd_tweak "$@" ;;
     winecfg) cmd_winecfg ;;
     stop) cmd_stop ;;
+    lobby) cmd_lobby "$@" ;;
     build-app) cmd_build_app "$@" ;;
     doctor) cmd_doctor ;;
     logs) cmd_logs "$@" ;;

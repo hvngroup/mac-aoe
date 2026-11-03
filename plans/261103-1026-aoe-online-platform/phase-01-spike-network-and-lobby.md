@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Spike: mạng ảo và lobby launch"
-status: pending
+status: in-progress
 priority: P1
 effort: 1w
 dependencies: []
@@ -21,8 +21,8 @@ viết dòng code sản phẩm nào:
 
 ## Việc cần làm
 
-1. **Dựng hub thủ công.** Trên một VPS HVN Cloud, cài WireGuard, cấp 4 peer
-   `10.77.0.11–14`, bật `net.ipv4.ip_forward` và cho phép forward giữa các peer.
+1. **Dựng hub thủ công.** Trên một VPS HVN Cloud có bản ghi DNS `aoe.hvn.works`,
+   chạy `setup-hub.sh`, rồi `add-peer.sh` cho từng người thử (`10.77.0.11` trở đi).
    Người thử dùng app WireGuard chính thức (Mac App Store, wireguard.com cho
    Windows).
 2. **Thử chơi bằng IP gõ tay.** Ghép từng cặp Mac↔Mac, Mac↔Windows,
@@ -60,8 +60,25 @@ viết dòng code sản phẩm nào:
 
 ## File
 
-- Mới: `aoe-online/tools/aoelobby/aoelobby.c`, `Makefile`
+Đặt tạm trong repo `mac-aoe` dưới `online/spike/` cho đến khi có repo riêng:
+
+- Mới: `online/spike/hub/setup-hub.sh`, `online/spike/hub/add-peer.sh` (dựng hub trên VPS, cấp cấu hình cho người thử)
+- Mới: `online/spike/aoelobby/aoelobby.c`, `lobbytarget.c`, `run-lobby-test.sh` (mở game qua lobby và test trên Wine)
 - Mới: `reports/phase-01-spike-results.md`
+- Mới: `docs/thu-nghiem-choi-online.md` (hướng dẫn chạy thử cho quản trị và người thử)
+- Sửa: `lib/game.sh`, `aoe-mac` (lệnh `aoe-mac lobby`, dùng chung DLL override với lúc chơi)
+
+## Tiến độ (2026-11-03)
+
+- [x] Script hub: test trong network namespace Linux đạt 25/25. TCP 2300 và UDP 47624 qua được, TCP 22 bị chặn, máy bị gỡ không vào được nữa, địa chỉ được dùng lại
+- [x] `aoelobby.exe`: test trên Wine (Linux, DirectPlay của Wine) đạt 14/14. Chương trình giả lập game nhận đúng vai trò, IP chủ phòng, GUID phiên, tên người chơi, số người tối đa
+- [x] `aoe-mac lobby` chạy `aoelobby.exe` trong prefix của mac-aoe với cùng DLL override như lúc chơi
+- [ ] Dựng hub trên VPS `aoe.hvn.works`
+- [ ] Thử A, B, C với người thật (xem `docs/thu-nghiem-choi-online.md`)
+- Ghi chú: DirectPlay của Wine bỏ trống `SendLobbyMessage` (trả `0x8007000e`), nên thử C phải làm với DirectPlay của Microsoft (Mac) và Windows thật
+
+Ở bản spike, `add-peer.sh` sinh khoá cho người thử ngay trên VPS cho nhanh. Bản
+sản phẩm (phase 3–4) sinh khoá trên máy người chơi.
 
 ## Rủi ro
 

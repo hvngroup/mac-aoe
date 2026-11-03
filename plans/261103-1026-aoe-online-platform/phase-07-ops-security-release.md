@@ -19,7 +19,7 @@ dependencies: [1, 2, 3, 4, 5, 6]
 
 - VPS HVN Cloud 2 vCPU / 4 GB / 40 GB SSD, đặt tại Việt Nam. Docker Compose:
   `server`, `wghub` (process riêng, có `CAP_NET_ADMIN`), `postgres`, `caddy`
-- Tên miền và TLS (Caddy tự cấp chứng chỉ). Mở cổng 443/TCP và 51820/UDP
+- Tên miền `aoe.hvn.works` và TLS (Caddy tự cấp chứng chỉ). Mở cổng 443/TCP và 51820/UDP
 - Sao lưu PostgreSQL mỗi ngày (`pg_dump`), giữ 14 bản, lưu ra ngoài VPS. Thử khôi phục một lần trước khi mở beta
 - Giám sát: endpoint `/healthz`, Uptime Kuma hoặc dịch vụ tương đương, cảnh báo về email kythuat@hvn.vn
 
@@ -33,7 +33,7 @@ dependencies: [1, 2, 3, 4, 5, 6]
 ### Ký và phát hành app
 
 - Mac: ký Developer ID, notarize, đóng `.dmg`. Helper đăng ký bằng `SMAppService`
-- Windows: ký code cho `.msi` và service. Wintun là bản đã ký của WireGuard LLC
+- Windows: beta nội bộ phát hành bản chưa ký (đã được chấp nhận). Tài liệu beta hướng dẫn "More info, Run anyway" khi SmartScreen cảnh báo. Wintun vẫn là bản đã ký của WireGuard LLC, nên driver cài được. Ký code trước khi mở công khai
 - Trang tải và hướng dẫn cài, dựa trên `mac-aoe/docs/huong-dan-thu-nghiem.md`
 
 ### Pháp lý (trước khi mở công khai)
@@ -52,7 +52,7 @@ dependencies: [1, 2, 3, 4, 5, 6]
 
 - [ ] Khôi phục được CSDL từ bản sao lưu trên một VPS mới
 - [ ] Quét cổng từ peer khác phòng không thấy cổng nào mở
-- [ ] App Mac mở được mà không cần "Open Anyway"; app Windows không bị SmartScreen chặn đỏ
+- [ ] App Mac mở được mà không cần "Open Anyway". App Windows cài được sau bước "Run anyway"
 - [ ] Có văn bản xác nhận của pháp chế trước khi mở công khai
 - [ ] Beta 2 tuần: không mất dữ liệu, thời gian hoạt động trên 99%
 
