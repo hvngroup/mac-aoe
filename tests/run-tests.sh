@@ -42,6 +42,7 @@ make_fixture() {
   echo mace > "$d/data/empires_mace_overpowered.dat"
   echo original > "$d/data/empires_original.dat"
   printf '[WINDOWMODE]\r\nUseCursorClip=1\r\nUseWindowMode=1\r\nBorder=1\r\n' > "$d/data/wndmode.ini"
+  echo dll > "$d/data/wndmode.dll"
   echo ai > "$d/data2/Default.ai"
   echo save > "$d/savegame/repo.gmx"
   echo readme > "$d/README.md"
@@ -113,6 +114,13 @@ run balance bogus; assert_eq "balance rejects unknown profile" "1" "$?"
 run display fullscreen; assert_eq "display fullscreen" "0" "$(grep UseWindowMode "$GAME/data/wndmode.ini" | tr -d '\r' | cut -d= -f2)"
 assert_eq "wndmode.ini keeps CRLF" "4" "$(grep -c $'\r$' "$GAME/data/wndmode.ini")"
 run display; assert_eq "display status" "fullscreen" "$(cat "$WORK/out")"
+run display native; check_not "native mode switches wndmode.dll off" test -e "$GAME/data/wndmode.dll"
+run display; assert_eq "display status native" "native" "$(cat "$WORK/out")"
+run play; assert_eq "native mode passes the wndmode flags to the game" "$GAME|C:\\Games\\AoE\\empires.exe nostartup systemmemory mfill" "$(tail -n 1 "$PREFIX/launches.log")"
+run play single custom; assert_eq "explicit game args win over native defaults" "$GAME|C:\\Games\\AoE\\empires.exe custom" "$(tail -n 1 "$PREFIX/launches.log")"
+run update; check_not "update keeps wndmode.dll off in native mode" test -e "$GAME/data/wndmode.dll"
+run display windowed; assert_file "windowed mode restores wndmode.dll" "$GAME/data/wndmode.dll"
+run display fullscreen
 
 echo usersave > "$GAME/savegame/mine.gmx"
 echo changed > "$WORK/src/data2/Default.ai"
@@ -124,8 +132,8 @@ assert_eq "update re-applies display" "0" "$(grep UseWindowMode "$GAME/data/wndm
 
 run play single nostartup; assert_eq "play single" "0" "$?"
 run play multi; assert_eq "play multi" "0" "$?"
-assert_eq "game launched from its folder with args" "$GAME|C:\\Games\\AoE\\empires.exe nostartup" "$(sed -n 1p "$PREFIX/launches.log")"
-assert_eq "multiplayer uses EMPIRESX.EXE" "$GAME|C:\\Games\\AoE\\EMPIRESX.EXE" "$(sed -n 2p "$PREFIX/launches.log")"
+assert_eq "game launched from its folder with args" "$GAME|C:\\Games\\AoE\\empires.exe nostartup" "$(tail -n 2 "$PREFIX/launches.log" | head -n 1)"
+assert_eq "multiplayer uses EMPIRESX.EXE" "$GAME|C:\\Games\\AoE\\EMPIRESX.EXE" "$(tail -n 1 "$PREFIX/launches.log")"
 FAKE_WINE_EXIT=3 run play; assert_eq "play propagates game exit code" "3" "$?"
 check "game log written" ls "$AOE_HOME/logs"/game-*.log
 run logs; assert_eq "logs prints the latest log" "0" "$?"

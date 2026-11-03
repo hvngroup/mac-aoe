@@ -19,6 +19,7 @@ WINEDEBUG=err+all,fixme-all ~/mac-aoe/aoe-mac play
 | `Rosetta 2: THIẾU` trên máy M1–M4 | `softwareupdate --install-rosetta --agree-to-license` |
 | macOS báo "không thể mở vì không xác minh được nhà phát triển" khi mở `AoE RoR.app` | Chuột phải vào app, chọn **Mở**, rồi chọn **Mở** lần nữa. Chỉ cần làm một lần |
 | `git clone thất bại` | Repo game có thể đang private. Đăng nhập GitHub bằng `gh auth login` hoặc cấu hình SSH key, rồi chạy lại `aoe-mac install` |
+| Game thoát với mã 1 sau vài giây, log có `nested exception on signal stack` | `aoe-mac display native` rồi chơi lại. Chế độ này tắt `wndmode.dll` (thư viện hook DirectDraw của game, dễ xung đột với Wine qua Rosetta) và bỏ qua video mở đầu |
 | Màn hình đen hoặc màu sai | Đổi chế độ hiển thị: `aoe-mac display fullscreen`, hoặc ngược lại `windowed` |
 | Cửa sổ quá nhỏ trên màn hình Retina | Dùng `aoe-mac display fullscreen`. macOS sẽ phóng to độ phân giải của game |
 | Không có tiếng | Chạy `aoe-mac winecfg`, mở tab **Audio** và chọn thiết bị ra |

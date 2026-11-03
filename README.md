@@ -60,7 +60,7 @@ Launchpad, rồi chọn **Chơi đơn**, **Chơi mạng LAN**, **Đổi bản c�
 | `aoe-mac play multi` | Chơi mạng (`EMPIRESX.EXE`, chống cheat) |
 | `aoe-mac balance de` | Đổi bản cân bằng: `ror`, `de`, `mace`, `original` |
 | `aoe-mac balance` | Xem bản cân bằng đang dùng |
-| `aoe-mac display fullscreen` | Chơi toàn màn hình (`windowed` để quay lại cửa sổ) |
+| `aoe-mac display native` | Toàn màn hình bằng DirectDraw của Wine, tắt `wndmode.dll` (dùng khi game sập lúc mở). `windowed`/`fullscreen` để quay lại `wndmode.dll` |
 | `aoe-mac update` | Lấy bản mới của game. Bản lưu và tuỳ chọn được giữ nguyên |
 | `aoe-mac doctor` | Kiểm tra môi trường khi gặp lỗi |
 | `aoe-mac winecfg` | Mở cấu hình Wine (âm thanh, đồ hoạ) |

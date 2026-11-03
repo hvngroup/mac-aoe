@@ -69,7 +69,7 @@ action="$(choose "Chọn chế độ" \
   "Chơi đơn (empires.exe)" \
   "Chơi mạng LAN (EMPIRESX.EXE)" \
   "Đổi bản cân bằng..." \
-  "Đổi chế độ hiển thị (cửa sổ / toàn màn hình)" \
+  "Đổi chế độ hiển thị..." \
   "Cập nhật game từ repo")"
 
 case "$action" in
@@ -85,7 +85,14 @@ case "$action" in
     "$AOE_MAC" balance "$profile" && dialog "Đã chuyển sang bản cân bằng: $profile"
     exit 0 ;;
   4)
-    if [ "$("$AOE_MAC" display)" = "windowed" ]; then next=fullscreen; else next=windowed; fi
+    picked="$(choose "Chế độ hiển thị (đang dùng: $("$AOE_MAC" display))" \
+      "native - Toàn màn hình bằng DirectDraw của Wine (ổn định nhất trên Mac)" \
+      "windowed - Cửa sổ (qua wndmode.dll của game)" \
+      "fullscreen - Toàn màn hình (qua wndmode.dll của game)")"
+    case "$picked" in
+      1) next=native ;; 2) next=windowed ;; 3) next=fullscreen ;;
+      *) exit 0 ;;
+    esac
     "$AOE_MAC" display "$next" && dialog "Chế độ hiển thị: $next"
     exit 0 ;;
   5)

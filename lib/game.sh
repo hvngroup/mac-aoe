@@ -249,16 +249,47 @@ cmd_balance() {
 
 # --- display ------------------------------------------------------------------
 
+# Display modes:
+#   windowed / fullscreen: the game's bundled data\wndmode.dll wrapper drives
+#     DirectDraw (UseWindowMode=1/0 in data/wndmode.ini).
+#   native: wndmode.dll is switched off (renamed) and Wine's own DirectDraw
+#     draws the game fullscreen. wndmode.dll hooks ddraw/d3d/dinput/user32 by
+#     patching code, which can crash under Wine + Rosetta on Apple Silicon.
+WNDMODE_OFF_SUFFIX=".aoe-mac-off"
+# Flags wndmode.ini hands the game; native mode passes them directly:
+# nostartup skips the intro videos, systemmemory and mfill avoid DirectDraw
+# rendering glitches on modern systems.
+NATIVE_GAME_ARGS="nostartup systemmemory mfill"
+
+wndmode_enable() {
+  local dll="$AOE_GAME_DIR/data/wndmode.dll"
+  if [ ! -f "$dll" ] && [ -f "$dll$WNDMODE_OFF_SUFFIX" ]; then
+    mv "$dll$WNDMODE_OFF_SUFFIX" "$dll"
+  fi
+}
+
+wndmode_disable() {
+  local dll="$AOE_GAME_DIR/data/wndmode.dll"
+  if [ -f "$dll" ]; then
+    mv -f "$dll" "$dll$WNDMODE_OFF_SUFFIX"
+  fi
+}
+
 set_display() {
   local ini="$AOE_GAME_DIR/data/wndmode.ini"
   case "$1" in
-    windowed) ini_set "$ini" UseWindowMode 1 ;;
-    fullscreen) ini_set "$ini" UseWindowMode 0 ;;
-    *) die "Chế độ hiển thị không hợp lệ: $1 (chọn: windowed, fullscreen)" ;;
+    windowed) wndmode_enable; ini_set "$ini" UseWindowMode 1 ;;
+    fullscreen) wndmode_enable; ini_set "$ini" UseWindowMode 0 ;;
+    native) wndmode_disable ;;
+    *) die "Chế độ hiển thị không hợp lệ: $1 (chọn: windowed, fullscreen, native)" ;;
   esac
 }
 
 current_display() {
+  if [ ! -f "$AOE_GAME_DIR/data/wndmode.dll" ]; then
+    echo native
+    return 0
+  fi
   case "$(ini_get "$AOE_GAME_DIR/data/wndmode.ini" UseWindowMode)" in
     0) echo fullscreen ;;
     *) echo windowed ;;
@@ -290,6 +321,10 @@ cmd_play() {
   require_wine
   require_game
   if [ "$mode" = "multi" ]; then exe="EMPIRESX.EXE"; else exe="empires.exe"; fi
+  if [ $# -eq 0 ] && [ "$(current_display)" = "native" ]; then
+    # shellcheck disable=SC2086  # intentional word splitting of the flag list
+    set -- $NATIVE_GAME_ARGS
+  fi
   mkdir -p "$AOE_LOG_DIR"
   logfile="$AOE_LOG_DIR/game-$(timestamp).log"
   log "Khởi động $exe (log: $logfile)"
@@ -321,7 +356,7 @@ write_log_header() {
   echo "command  : $exe $*"
   echo "balance  : $(current_balance || true)"
   echo "display  : $(current_display)"
-  echo "wndmode  : $(grep -E '^(UseWindowMode|CommandLine)=' "$AOE_GAME_DIR/data/wndmode.ini" 2>/dev/null | tr -d '\r' | tr '\n' ' ')"
+  echo "wndmode  : $([ -f "$AOE_GAME_DIR/data/wndmode.dll" ] && echo on || echo off) $(grep -E '^(UseWindowMode|CommandLine)=' "$AOE_GAME_DIR/data/wndmode.ini" 2>/dev/null | tr -d '\r' | tr '\n' ' ')"
   echo "WINEDEBUG: ${WINEDEBUG:-err+all,fixme-all}"
   echo "=== wine output ==="
 }
