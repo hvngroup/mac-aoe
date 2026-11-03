@@ -40,6 +40,11 @@ Chơi
                               cnc-window: cửa sổ qua cnc-ddraw
                               windowed/fullscreen: qua wndmode.dll của game
                               native: DirectDraw của Wine, đổi độ phân giải thật
+  renderer [gdi|opengl|direct3d9|auto]
+                              Cách cnc-ddraw vẽ hình (mặc định gdi: ô nhập tên,
+                              chat hiển thị đúng trên Mac)
+  directplay [wine|native]    DirectPlay cho chơi mạng: của Wine (mặc định) hoặc
+                              dplayx.dll của Microsoft đi kèm game
   winecfg                     Mở cấu hình Wine (âm thanh, đồ hoạ)
 
 Hệ thống
@@ -129,6 +134,8 @@ main() {
     play) cmd_play "$@" ;;
     balance) cmd_balance "$@" ;;
     display) cmd_display "$@" ;;
+    renderer) cmd_renderer "$@" ;;
+    directplay) cmd_directplay "$@" ;;
     winecfg) cmd_winecfg ;;
     build-app) cmd_build_app "$@" ;;
     doctor) cmd_doctor ;;

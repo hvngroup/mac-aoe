@@ -21,6 +21,8 @@ WINEDEBUG=err+all,fixme-all ~/mac-aoe/aoe-mac play
 | `git clone thất bại` | Repo game có thể đang private. Đăng nhập GitHub bằng `gh auth login` hoặc cấu hình SSH key, rồi chạy lại `aoe-mac install` |
 | Game thoát với mã 1 sau vài giây, log có `nested exception on signal stack` | `aoe-mac display cnc` rồi chơi lại. Chế độ này tắt `wndmode.dll` (thư viện hook DirectDraw của game, xung đột với Wine qua Rosetta) và bỏ qua video mở đầu |
 | Vào được màn hình chính, bấm menu thì màn hình đen | Máy Mac chip Apple không còn các độ phân giải thấp mà game xin đổi. Dùng `aoe-mac display cnc` (cnc-ddraw phóng to hình vào màn hình, không đổi độ phân giải thật) |
+| Ô nhập tên hoặc chat làm màn hình chuyển trắng | `aoe-mac renderer gdi` (mặc định từ 0.2.1). Driver Mac của Wine không vẽ được ô nhập liệu đè lên hình OpenGL |
+| "Unable to create game. For TCP/IP games..." | `aoe-mac directplay native`, rồi thử lại. Nếu vẫn lỗi, gửi log mạng (xem mục Chơi mạng LAN) |
 | Màn hình đen hoặc màu sai | Thử lần lượt `aoe-mac display cnc`, `cnc-window`, rồi `native` |
 | Hình bị mờ hoặc muốn đổi bộ lọc | Sửa dòng `shader=` trong `drive_c/Games/AoE/ddraw.ini` (`Nearest neighbor`, `Bilinear`, `Lanczos`). Lưu ý `aoe-mac display`/`update` ghi lại file này |
 | Không có tiếng | Chạy `aoe-mac winecfg`, mở tab **Audio** và chọn thiết bị ra |
@@ -35,9 +37,10 @@ mạng giữa các máy Mac cùng chạy `mac-aoe` có thể hoạt động. Ch�
 Windows chưa được kiểm chứng. Nếu gặp lỗi:
 
 1. Cho phép Wine nhận kết nối khi macOS hỏi về tường lửa.
-2. Thử chạy với file `dplayx.dll` đi kèm game thay cho bản của Wine:
-   `WINEDLLOVERRIDES="dplayx=n,b" aoe-mac play multi`
-3. Gửi log trong `logs/` cho bộ phận kỹ thuật.
+2. Thử DirectPlay của Microsoft đi kèm game thay cho bản của Wine:
+   `aoe-mac directplay native` (quay lại bằng `aoe-mac directplay wine`).
+3. Lấy log mạng chi tiết rồi gửi bộ phận kỹ thuật:
+   `WINEDEBUG=err+all,+dplay,+winsock aoe-mac play multi`, sau đó `aoe-mac logs`.
 
 ## Kiểm thử chấp nhận (UAT) trên máy Mac thật
 

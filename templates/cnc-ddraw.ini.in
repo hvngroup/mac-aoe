@@ -12,8 +12,12 @@ boxing=false
 border=true
 resizable=true
 adjmouse=true
-; OpenGL directly: one layer less than direct3d9 on top of Wine's wined3d.
-renderer=opengl
+; GDI by default: the game's text boxes (player name, chat) are real Win32
+; child windows, and Wine's macOS driver cannot composite them over an
+; OpenGL surface (the screen turns white around the text box). Change with
+; "aoe-mac renderer opengl|direct3d9|auto|gdi".
+renderer=@RENDERER@
+; Upscaling filter, only used by the opengl renderer.
 shader=Bilinear
 vsync=false
 maxfps=-1

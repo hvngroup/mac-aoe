@@ -139,10 +139,22 @@ run display; assert_eq "display status cnc" "cnc" "$(cat "$WORK/out")"
 run play; run logs
 assert_contains "cnc mode loads ddraw.dll from the game folder" "$WORK/out" "WINEDLLOVERRIDES=ddraw=n,b"
 assert_eq "cnc mode passes the wndmode flags to the game" "$GAME|C:\\Games\\AoE\\empires.exe nostartup systemmemory mfill" "$(tail -n 1 "$PREFIX/launches.log")"
+assert_eq "cnc uses the GDI renderer by default" "gdi" "$(grep '^renderer=' "$GAME/ddraw.ini" | cut -d= -f2)"
+run renderer opengl; assert_eq "renderer command rewrites ddraw.ini" "opengl" "$(grep '^renderer=' "$GAME/ddraw.ini" | cut -d= -f2)"
+run renderer; assert_eq "renderer status" "opengl" "$(cat "$WORK/out")"
+run renderer vulkan; assert_eq "renderer rejects unknown values" "1" "$?"
+run renderer gdi
 run display cnc-window; assert_eq "cnc-window mode is windowed" "false" "$(grep '^fullscreen=' "$GAME/ddraw.ini" | cut -d= -f2)"
 run display; assert_eq "display status cnc-window" "cnc-window" "$(cat "$WORK/out")"
+assert_eq "renderer choice survives display changes" "gdi" "$(grep '^renderer=' "$GAME/ddraw.ini" | cut -d= -f2)"
 run update; assert_file "update keeps cnc-ddraw" "$GAME/ddraw.dll"
 check_not "update keeps wndmode.dll off in cnc mode" test -e "$GAME/data/wndmode.dll"
+run directplay; assert_eq "DirectPlay defaults to Wine's" "wine" "$(cat "$WORK/out")"
+run directplay native; run play multi; run logs
+assert_contains "native DirectPlay loads the game's dplayx.dll (with cnc-ddraw)" "$WORK/out" "WINEDLLOVERRIDES=ddraw=n,b;dplayx=n,b"
+run directplay bogus; assert_eq "directplay rejects unknown values" "1" "$?"
+run directplay wine; run play multi; run logs
+check_not "Wine DirectPlay sets no dplayx override" grep -q "dplayx=n,b" "$WORK/out"
 run display fullscreen; check_not "wndmode modes switch cnc-ddraw off" test -e "$GAME/ddraw.dll"
 assert_file "wndmode modes restore wndmode.dll" "$GAME/data/wndmode.dll"
 run play; run logs

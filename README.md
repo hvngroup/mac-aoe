@@ -62,6 +62,8 @@ Launchpad, rồi chọn **Chơi đơn**, **Chơi mạng LAN**, **Đổi bản c�
 | `aoe-mac balance` | Xem bản cân bằng đang dùng |
 | `aoe-mac display cnc` | Toàn màn hình qua cnc-ddraw, mặc định trên Mac. `cnc-window` để chơi trong cửa sổ |
 | `aoe-mac display native` | DirectDraw của Wine, đổi độ phân giải thật. `windowed`/`fullscreen` dùng `wndmode.dll` của game |
+| `aoe-mac renderer opengl` | Đổi cách cnc-ddraw vẽ hình (mặc định `gdi`, cần cho ô nhập tên và chat) |
+| `aoe-mac directplay native` | Chơi mạng bằng `dplayx.dll` của Microsoft đi kèm game (`wine` để quay lại) |
 | `aoe-mac update` | Lấy bản mới của game. Bản lưu và tuỳ chọn được giữ nguyên |
 | `aoe-mac doctor` | Kiểm tra môi trường khi gặp lỗi |
 | `aoe-mac winecfg` | Mở cấu hình Wine (âm thanh, đồ hoạ) |

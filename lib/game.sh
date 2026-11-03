@@ -309,9 +309,31 @@ cnc_ddraw_install() {
   fi
 }
 
+CNC_RENDERERS="gdi opengl openglcore direct3d9 auto"
+
 cnc_ddraw_configure() {
-  local fullscreen="$1"
-  sed "s/@FULLSCREEN@/$fullscreen/" "$(toolkit_root)/templates/cnc-ddraw.ini.in" > "$AOE_GAME_DIR/ddraw.ini"
+  local fullscreen="$1" renderer
+  renderer="$(config_get CNC_RENDERER gdi)"
+  sed -e "s/@FULLSCREEN@/$fullscreen/" -e "s/@RENDERER@/$renderer/" \
+    "$(toolkit_root)/templates/cnc-ddraw.ini.in" > "$AOE_GAME_DIR/ddraw.ini"
+}
+
+cmd_renderer() {
+  require_game
+  local renderer="${1:-}" r valid=0
+  if [ -z "$renderer" ]; then
+    config_get CNC_RENDERER gdi
+    return 0
+  fi
+  for r in $CNC_RENDERERS; do [ "$r" = "$renderer" ] && valid=1; done
+  [ "$valid" -eq 1 ] || die "Renderer không hợp lệ: $renderer (chọn: $CNC_RENDERERS)"
+  config_set CNC_RENDERER "$renderer"
+  case "$(current_display)" in
+    cnc) cnc_ddraw_configure true ;;
+    cnc-window) cnc_ddraw_configure false ;;
+    *) warn "Renderer chỉ có tác dụng ở chế độ cnc/cnc-window (aoe-mac display cnc)." ;;
+  esac
+  log "Renderer cnc-ddraw: $renderer"
 }
 
 set_display() {
@@ -340,6 +362,19 @@ current_display() {
   case "$(ini_get "$AOE_GAME_DIR/data/wndmode.ini" UseWindowMode)" in
     0) echo fullscreen ;;
     *) echo windowed ;;
+  esac
+}
+
+# DirectPlay used for multiplayer: Wine's own implementation, or Microsoft's
+# dplayx.dll (Windows XP build) that ships in the game folder.
+cmd_directplay() {
+  require_game
+  case "${1:-}" in
+    "") config_get DIRECTPLAY wine ;;
+    wine|native)
+      config_set DIRECTPLAY "$1"
+      log "DirectPlay: $1" ;;
+    *) die "Giá trị không hợp lệ: $1 (chọn: wine, native)" ;;
   esac
 }
 
@@ -377,10 +412,19 @@ cmd_play() {
     # shellcheck disable=SC2086  # intentional word splitting of the flag list
     set -- $NATIVE_GAME_ARGS
   fi
+  local overrides=""
   case "$(current_display)" in
     # Wine prefers its builtin ddraw; load cnc-ddraw from the game folder.
-    cnc|cnc-window) WINEDLLOVERRIDES="ddraw=n,b${WINEDLLOVERRIDES:+;$WINEDLLOVERRIDES}"; export WINEDLLOVERRIDES ;;
+    cnc|cnc-window) overrides="ddraw=n,b" ;;
   esac
+  if [ "$(config_get DIRECTPLAY wine)" = "native" ]; then
+    # Microsoft's dplayx.dll shipped in the game folder instead of Wine's.
+    overrides="${overrides:+$overrides;}dplayx=n,b"
+  fi
+  if [ -n "$overrides" ]; then
+    WINEDLLOVERRIDES="$overrides${WINEDLLOVERRIDES:+;$WINEDLLOVERRIDES}"
+    export WINEDLLOVERRIDES
+  fi
   mkdir -p "$AOE_LOG_DIR"
   logfile="$AOE_LOG_DIR/game-$(timestamp).log"
   log "Khởi động $exe (log: $logfile)"
@@ -412,8 +456,9 @@ write_log_header() {
   echo "command  : $exe $*"
   echo "balance  : $(current_balance || true)"
   echo "display  : $(current_display)"
-  echo "cnc-ddraw: $([ -f "$(cnc_ddraw_dll)" ] && echo on || echo off)"
+  echo "cnc-ddraw: $([ -f "$(cnc_ddraw_dll)" ] && echo "on, renderer=$(ini_get "$AOE_GAME_DIR/ddraw.ini" renderer)" || echo off)"
   echo "wndmode  : $([ -f "$AOE_GAME_DIR/data/wndmode.dll" ] && echo on || echo off) $(grep -E '^(UseWindowMode|CommandLine)=' "$AOE_GAME_DIR/data/wndmode.ini" 2>/dev/null | tr -d '\r' | tr '\n' ' ')"
+  echo "directplay: $(config_get DIRECTPLAY wine)"
   echo "WINEDEBUG: ${WINEDEBUG:-err+all,fixme-all}"
   echo "WINEDLLOVERRIDES: ${WINEDLLOVERRIDES:-}"
   echo "=== wine output ==="
