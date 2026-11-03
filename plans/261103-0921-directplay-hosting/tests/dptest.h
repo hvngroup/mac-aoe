@@ -54,14 +54,27 @@ static HRESULT dptest_init( IDirectPlay4A **dp, const char *ip )
     void *addr;
     HRESULT hr;
 
-    hr = CoCreateInstance( &CLSID_DirectPlay, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectPlay4A,
-                           (void **)dp );
-    check( SUCCEEDED( hr ), "CoCreateInstance(CLSID_DirectPlay, IID_IDirectPlay4A)", hr );
+    IDirectPlay *dp1 = NULL;
+    IDirectPlayLobbyA *lobby1 = NULL;
+
+    /* Use the dplayx exports rather than CoCreateInstance so that the dplayx.dll next to the
+     * executable is used instead of the one registered in the prefix. */
+    GUID null_guid = { 0 };
+
+    hr = DirectPlayCreate( &null_guid, &dp1, NULL );
+    check( SUCCEEDED( hr ), "DirectPlayCreate", hr );
+    if ( FAILED( hr ) ) return hr;
+    hr = IDirectPlay_QueryInterface( dp1, &IID_IDirectPlay4A, (void **)dp );
+    check( SUCCEEDED( hr ), "QueryInterface(IID_IDirectPlay4A)", hr );
+    IDirectPlay_Release( dp1 );
     if ( FAILED( hr ) ) return hr;
 
-    hr = CoCreateInstance( &CLSID_DirectPlayLobby, NULL, CLSCTX_INPROC_SERVER,
-                           &IID_IDirectPlayLobby3A, (void **)&lobby );
-    check( SUCCEEDED( hr ), "CoCreateInstance(CLSID_DirectPlayLobby)", hr );
+    hr = DirectPlayLobbyCreateA( NULL, &lobby1, NULL, NULL, 0 );
+    check( SUCCEEDED( hr ), "DirectPlayLobbyCreateA", hr );
+    if ( FAILED( hr ) ) return hr;
+    hr = IDirectPlayLobby_QueryInterface( lobby1, &IID_IDirectPlayLobby3A, (void **)&lobby );
+    IDirectPlayLobby_Release( lobby1 );
+    check( SUCCEEDED( hr ), "QueryInterface(IID_IDirectPlayLobby3A)", hr );
     if ( FAILED( hr ) ) return hr;
 
     elems[ 0 ].guidDataType = DPAID_ServiceProvider;

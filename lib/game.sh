@@ -614,7 +614,21 @@ cmd_logs() {
   [ -n "$file" ] || die "Chưa có log nào trong $AOE_LOG_DIR"
   case "${1:-}" in
     --path) printf '%s\n' "$file" ;;
-    "") tail -n 200 "$file" ;;
+    "")
+      # Always show the environment header (settings of that run), then the
+      # last 200 lines of Wine output.
+      awk '{ print } /^=== wine output ===$/ { exit }' "$file"
+      local total header
+      total="$(wc -l < "$file" | tr -d ' ')"
+      header="$(awk '/^=== wine output ===$/ { print NR; exit }' "$file")"
+      if [ -n "$header" ] && [ $((total - header)) -gt 200 ]; then
+        echo "... ($((total - header - 200)) dòng bị lược, xem đủ: aoe-mac logs --path) ..."
+        tail -n 200 "$file"
+      elif [ -n "$header" ]; then
+        tail -n +$((header + 1)) "$file"
+      else
+        tail -n 200 "$file"
+      fi ;;
     *) die "Tham số không hợp lệ cho logs: $1" ;;
   esac
 }

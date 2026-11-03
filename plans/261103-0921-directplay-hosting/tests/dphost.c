@@ -1,5 +1,5 @@
-/* dphost: create a DirectPlay TCP/IP session and wait for a joiner.
- * Usage: dphost.exe [seconds]   (default 40)
+/* dphost: create a DirectPlay TCP/IP session and wait for joiners.
+ * Usage: dphost.exe [seconds] [joiners]   (default 40 seconds, 1 joiner)
  * Exit code: number of failed checks.
  */
 #include "dptest.h"
@@ -17,7 +17,8 @@ static BOOL CALLBACK enum_players_cb( DPID id, DWORD type, const DPNAME *name, D
 int main( int argc, char **argv )
 {
     int seconds = argc > 1 ? atoi( argv[ 1 ] ) : 40;
-    BOOL got_join = FALSE, got_reliable = FALSE, got_unreliable = FALSE, got_bye = FALSE;
+    int joiners = argc > 2 ? atoi( argv[ 2 ] ) : 1;
+    int got_join = 0, got_reliable = 0, got_unreliable = 0, got_bye = 0;
     DPSESSIONDESC2 sd;
     IDirectPlay4A *dp;
     DPNAME name;
@@ -52,7 +53,7 @@ int main( int argc, char **argv )
     printf( "READY\n" );
 
     start = GetTickCount();
-    while ( GetTickCount() - start < (DWORD)seconds * 1000 && !got_bye )
+    while ( GetTickCount() - start < (DWORD)seconds * 1000 && got_bye < joiners )
     {
         char buf[ 1024 ];
         DWORD size = sizeof( buf );
@@ -80,9 +81,8 @@ int main( int argc, char **argv )
                 DPMSG_CREATEPLAYERORGROUP *cp = (DPMSG_CREATEPLAYERORGROUP *)buf;
                 printf( "INFO:   new player 0x%08lx name=%s\n", (unsigned long)cp->dpId,
                         cp->dpnName.lpszShortNameA ? cp->dpnName.lpszShortNameA : "(null)" );
-                if ( !got_join )
-                    check( TRUE, "host saw remote player join (DPSYS_CREATEPLAYERORGROUP)", hr );
-                got_join = TRUE;
+                check( TRUE, "host saw remote player join (DPSYS_CREATEPLAYERORGROUP)", hr );
+                got_join++;
             }
             continue;
         }
@@ -90,30 +90,33 @@ int main( int argc, char **argv )
         buf[ size < sizeof( buf ) ? size : sizeof( buf ) - 1 ] = 0;
         printf( "INFO: host got app message from 0x%08lx to 0x%08lx: \"%s\"\n",
                 (unsigned long)from, (unsigned long)to, buf );
-        if ( !strcmp( buf, DPTEST_JOIN_MSG ) && !got_reliable )
+        if ( !strcmp( buf, DPTEST_JOIN_MSG ) )
         {
-            got_reliable = TRUE;
+            got_reliable++;
             check( TRUE, "host received guaranteed message from joiner", hr );
             hr = IDirectPlayX_Send( dp, host_player, from, DPSEND_GUARANTEED,
                                     (void *)DPTEST_HOST_MSG, sizeof( DPTEST_HOST_MSG ) );
             check( SUCCEEDED( hr ), "host Send(guaranteed) reply to joiner", hr );
         }
-        else if ( !strcmp( buf, DPTEST_UDP_MSG ) && !got_unreliable )
+        else if ( !strcmp( buf, DPTEST_UDP_MSG ) )
         {
-            got_unreliable = TRUE;
-            check( TRUE, "host received non-guaranteed message from joiner", hr );
+            if ( got_unreliable++ < joiners )
+                check( TRUE, "host received non-guaranteed message from joiner", hr );
         }
         else if ( !strcmp( buf, "bye" ) )
-            got_bye = TRUE;
+            got_bye++;
     }
 
-    check( got_join, "host: joiner player created", 0 );
-    check( got_reliable, "host: guaranteed message received", 0 );
-    check( got_unreliable, "host: non-guaranteed message received", 0 );
+    printf( "INFO: joins=%d guaranteed=%d non-guaranteed=%d byes=%d\n", got_join, got_reliable,
+            got_unreliable, got_bye );
+    check( got_join == joiners, "host: every joiner's player created", 0 );
+    check( got_reliable == joiners, "host: guaranteed message received from every joiner", 0 );
+    check( got_unreliable >= joiners, "host: non-guaranteed messages received", 0 );
 
     count = 0;
     hr = IDirectPlayX_EnumPlayers( dp, NULL, enum_players_cb, &count, DPENUMPLAYERS_ALL );
-    check( SUCCEEDED( hr ) && count >= 2, "host EnumPlayers sees >= 2 players", hr );
+    check( SUCCEEDED( hr ) && count == joiners + 1, "host EnumPlayers sees host + joiner players",
+           hr );
 
     IDirectPlayX_Close( dp );
     IDirectPlayX_Release( dp );

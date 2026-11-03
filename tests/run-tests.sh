@@ -207,6 +207,12 @@ assert_contains "log header records the Wine build" "$WORK/out" "wine     : $ROO
 assert_contains "log header records the command" "$WORK/out" "command  : empires.exe"
 assert_contains "Wine errors are logged by default" "$WORK/out" "WINEDEBUG=err+all,fixme-all,+loaddll"
 run logs --path; check "logs --path points to a file" test -f "$(cat "$WORK/out")"
+logfile_long="$(cat "$WORK/out")"
+i=0; while [ $i -lt 300 ]; do echo "wine line $i" >> "$logfile_long"; i=$((i + 1)); done
+run logs
+assert_contains "logs keeps the settings header on long logs" "$WORK/out" "display  :"
+assert_contains "logs says how much was skipped" "$WORK/out" "dòng bị lược"
+assert_contains "logs shows the end of the log" "$WORK/out" "wine line 299"
 FAKE_WINE_SLEEP=30 "$AOE_MAC" play >"$WORK/out" 2>&1 &
 playpid=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "$PREFIX/fake-game.pid" ] && break; sleep 0.5; done
