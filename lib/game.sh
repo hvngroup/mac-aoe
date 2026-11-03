@@ -171,13 +171,21 @@ apply_preferences() {
   [ -n "$balance" ] && set_balance "$balance"
   # Apple Silicon cannot switch to the game's low display modes, and the
   # bundled wndmode.dll crashes under Rosetta: default to cnc-ddraw on macOS.
+  # A window keeps the CPU-side GDI scaling small (fullscreen on a large
+  # monitor lagged), and GDI is the only renderer that shows text boxes.
   if [ -z "$display" ] && is_macos; then
-    display="cnc"
+    display="cnc-window"
     config_set DISPLAY_MODE "$display"
   fi
   [ -n "$display" ] && set_display "$display"
   local dplay
   dplay="$(config_get DIRECTPLAY)"
+  # Wine's own DirectPlay cannot host games; Microsoft's can (verified on
+  # macOS 27 / Wine 11.21), so Macs default to it.
+  if [ -z "$dplay" ] && is_macos; then
+    dplay="microsoft"
+    config_set DIRECTPLAY "$dplay"
+  fi
   [ "$dplay" = "native" ] && { dplay=microsoft; config_set DIRECTPLAY microsoft; }
   [ -n "$dplay" ] && set_directplay "$dplay"
   local cursor

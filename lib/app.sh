@@ -3,26 +3,6 @@
 
 AOE_APP_NAME_DEFAULT="AoE RoR"
 
-# write_command_file PATH SUBCOMMAND TITLE -> a .command script Terminal can open.
-write_command_file() {
-  local path="$1" sub="$2" title="$3"
-  cat > "$path" <<EOF
-#!/bin/bash
-# Opened in Terminal by the AoE RoR app to show progress of: $title
-cd "\$(dirname "\$0")" || exit 1
-echo "== $title =="
-if ./aoe-mac $sub; then
-  echo
-  echo "Hoàn tất. Mở lại ứng dụng AoE RoR để chơi."
-else
-  echo
-  echo "Có lỗi xảy ra. Chụp màn hình cửa sổ này gửi bộ phận kỹ thuật (kythuat@hvn.vn)."
-fi
-read -r -p "Nhấn Enter để đóng..." _
-EOF
-  chmod +x "$path"
-}
-
 # make_icon EXE ICNS -> extracts the game's own icon (best effort, macOS only).
 make_icon() {
   local exe="$1" icns="$2" work png largest size
@@ -48,11 +28,12 @@ make_icon() {
 }
 
 cmd_build_app() {
-  local out_dir="" name="$AOE_APP_NAME_DEFAULT" root app version
+  local out_dir="" name="$AOE_APP_NAME_DEFAULT" root app version zip=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --output) [ $# -ge 2 ] || die "--output cần giá trị"; out_dir="$2"; shift ;;
       --name) [ $# -ge 2 ] || die "--name cần giá trị"; name="$2"; shift ;;
+      --zip) zip=1 ;;
       *) die "Tham số không hợp lệ cho build-app: $1" ;;
     esac
     shift
@@ -73,8 +54,6 @@ cmd_build_app() {
   # Embed the toolkit so the app keeps working if this repo is moved/deleted.
   cp "$root/aoe-mac" "$root/VERSION" "$app.tmp/Contents/Resources/toolkit/"
   cp -R "$root/lib" "$root/templates" "$app.tmp/Contents/Resources/toolkit/"
-  write_command_file "$app.tmp/Contents/Resources/toolkit/setup.command" setup "Cài đặt AoE RoR"
-  write_command_file "$app.tmp/Contents/Resources/toolkit/update.command" update "Cập nhật AoE RoR"
 
   cp "$root/templates/app-launcher.sh" "$app.tmp/Contents/MacOS/aoe-launcher"
   chmod +x "$app.tmp/Contents/MacOS/aoe-launcher" "$app.tmp/Contents/Resources/toolkit/aoe-mac"
@@ -97,4 +76,16 @@ cmd_build_app() {
     codesign --force --deep --sign - "$app" >/dev/null 2>&1 || warn "Ký ad-hoc thất bại (app vẫn chạy được)."
   fi
   log "Xong. Mở bằng Finder hoặc: open \"$app\""
+  if [ "$zip" -eq 1 ]; then
+    local zipfile
+    zipfile="$out_dir/$(printf '%s' "$name" | tr ' ' '-')-$version-macos.zip"
+    rm -f "$zipfile"
+    if command -v ditto >/dev/null 2>&1; then
+      ditto -c -k --keepParent "$app" "$zipfile" || die "Nén app thất bại."
+    else
+      need_cmd zip "Cần zip để nén app."
+      (cd "$out_dir" && zip -q -r -y "$zipfile" "$name.app") || die "Nén app thất bại."
+    fi
+    log "Gói gửi người thử: $zipfile"
+  fi
 }

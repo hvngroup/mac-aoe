@@ -58,9 +58,28 @@ end run
 OSA
 }
 
+run_in_terminal() {
+  # run_in_terminal TITLE SUBCOMMAND -> runs "aoe-mac SUBCOMMAND" in a new
+  # Terminal window so the player sees the progress. Terminal runs the
+  # command through bash itself, so Gatekeeper never has to open a script
+  # file from this (possibly quarantined) download.
+  local title="$1" sub="$2" cmd
+  cmd="clear; echo $(printf '%q' "== $title =="); $(printf '%q' "$AOE_MAC") $sub"
+  cmd="$cmd && echo && echo 'Hoàn tất. Mở lại ứng dụng AoE RoR để chơi.'"
+  cmd="$cmd || { echo; echo 'Có lỗi. Chụp màn hình cửa sổ này gửi bộ phận kỹ thuật (kythuat@hvn.vn).'; }"
+  osascript - "$cmd" >/dev/null 2>&1 <<'OSA'
+on run argv
+  tell application "Terminal"
+    activate
+    do script (item 1 of argv)
+  end tell
+end run
+OSA
+}
+
 if ! "$AOE_MAC" status --quiet >/dev/null 2>&1; then
   if ask_yes_no "Game chưa được cài trên máy này. Mở Terminal để cài đặt (tải Wine và game, khoảng 650 MB)?"; then
-    open -a Terminal "$TOOLKIT/setup.command"
+    run_in_terminal "Cài đặt AoE RoR" setup
   fi
   exit 0
 fi
@@ -86,19 +105,19 @@ case "$action" in
     exit 0 ;;
   4)
     picked="$(choose "Chế độ hiển thị (đang dùng: $("$AOE_MAC" display))" \
-      "cnc - Toàn màn hình qua cnc-ddraw (khuyên dùng trên Mac)" \
-      "cnc-window - Cửa sổ qua cnc-ddraw" \
+      "cnc-window - Cửa sổ qua cnc-ddraw (khuyên dùng trên Mac)" \
+      "cnc - Toàn màn hình qua cnc-ddraw (nặng hơn trên màn hình lớn)" \
       "windowed - Cửa sổ qua wndmode.dll của game" \
       "fullscreen - Toàn màn hình qua wndmode.dll của game" \
       "native - DirectDraw của Wine, đổi độ phân giải thật")"
     case "$picked" in
-      1) next=cnc ;; 2) next=cnc-window ;; 3) next=windowed ;; 4) next=fullscreen ;; 5) next=native ;;
+      1) next=cnc-window ;; 2) next=cnc ;; 3) next=windowed ;; 4) next=fullscreen ;; 5) next=native ;;
       *) exit 0 ;;
     esac
     "$AOE_MAC" display "$next" && dialog "Chế độ hiển thị: $next"
     exit 0 ;;
   5)
-    open -a Terminal "$TOOLKIT/update.command"
+    run_in_terminal "Cập nhật AoE RoR" update
     exit 0 ;;
   *) exit 0 ;;
 esac

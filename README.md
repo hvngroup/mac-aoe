@@ -21,6 +21,11 @@ bằng `EMPIRESX.EXE`.
 | Mạng | Cần khi cài lần đầu để tải Wine và game |
 | git | Nên có (`xcode-select --install`). Nếu thiếu, bộ cài tải bản zip khi repo để public |
 
+## Bản thử nghiệm
+
+Tải app đóng gói sẵn và làm theo [hướng dẫn thử nghiệm](docs/huong-dan-thu-nghiem.md).
+Không cần dùng Terminal để cài.
+
 ## Cài đặt nhanh
 
 Mở Terminal rồi chạy:
@@ -98,6 +103,7 @@ Mọi dữ liệu nằm trong `~/Library/Application Support/AoE-Mac/`:
 
 - [Kiến trúc và cách hoạt động](docs/architecture.md)
 - [Xử lý sự cố](docs/troubleshooting.md)
+- [Hướng dẫn thử nghiệm cho đồng nghiệp](docs/huong-dan-thu-nghiem.md)
 
 ## Phát triển
 

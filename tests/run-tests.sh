@@ -104,7 +104,8 @@ assert_eq "install succeeds" "0" "$rc"
 assert_file "game copied" "$GAME/empires.exe"
 assert_file "AI scripts copied" "$GAME/data2/Default.ai"
 if [ "$(uname -s)" = "Darwin" ]; then
-  run display; assert_eq "macOS install defaults to cnc-ddraw" "cnc" "$(cat "$WORK/out")"
+  run display; assert_eq "macOS install defaults to a cnc-ddraw window" "cnc-window" "$(cat "$WORK/out")"
+  run directplay; assert_eq "macOS install defaults to Microsoft DirectPlay" "microsoft" "$(cat "$WORK/out")"
 fi
 if [ -e "$GAME/.git" ] || [ -e "$GAME/data2_daominah" ] || [ -e "$GAME/README.md" ]; then
   fail "repo-only files excluded"
@@ -249,12 +250,17 @@ wait "$playpid"; rc=$?
 assert_eq "aoe-mac stop ends a running game" "0" "$([ "$rc" -ne 0 ] && echo 0 || echo "rc=$rc")"
 
 echo "== build-app"
-run build-app --output "$WORK/apps"; assert_eq "build-app succeeds" "0" "$?"
+run build-app --output "$WORK/apps" --zip; assert_eq "build-app succeeds" "0" "$?"
+ZIP="$WORK/apps/AoE-RoR-$(cat "$ROOT/VERSION")-macos.zip"
+assert_file "build-app --zip writes the tester package" "$ZIP"
+check "zip contains the launcher" sh -c "unzip -l \"$ZIP\" | grep -q 'AoE RoR.app/Contents/MacOS/aoe-launcher'"
+rm -rf "$WORK/unz" && mkdir -p "$WORK/unz" && (cd "$WORK/unz" && unzip -q "$ZIP")
+check "zip keeps the launcher executable" test -x "$WORK/unz/AoE RoR.app/Contents/MacOS/aoe-launcher"
 APP="$WORK/apps/AoE RoR.app"
 assert_file "launcher present" "$APP/Contents/MacOS/aoe-launcher"
 check "launcher executable" test -x "$APP/Contents/MacOS/aoe-launcher"
 assert_file "toolkit embedded" "$APP/Contents/Resources/toolkit/lib/game.sh"
-assert_file "setup.command present" "$APP/Contents/Resources/toolkit/setup.command"
+check_not "no .command files that Gatekeeper could block" ls "$APP/Contents/Resources/toolkit/"*.command
 assert_contains "Info.plist executable" "$APP/Contents/Info.plist" "<string>aoe-launcher</string>"
 assert_contains "Info.plist version" "$APP/Contents/Info.plist" "<string>$(cat "$ROOT/VERSION")</string>"
 if command -v plutil >/dev/null 2>&1; then
@@ -281,6 +287,11 @@ launch 1; assert_eq "menu > single player launches empires.exe" "$GAME|C:\\Games
 echo "== uninstall"
 AOE_PREFIX="/tmp/not-aoe-$$" run uninstall -y; assert_eq "uninstall refuses prefix outside AOE_HOME" "1" "$?"
 run uninstall -y; assert_eq "uninstall succeeds" "0" "$?"
+launch yes
+assert_contains "first launch offers to install" "$FAKE_OSA_LOG" "arg:Game chưa được cài trên máy này."
+setup_cmd="$(grep '^arg:clear;' "$FAKE_OSA_LOG" | head -n 1 | sed 's/^arg://')"
+check "first launch runs setup in Terminal" sh -c "printf '%s' \"\$1\" | grep -q ' setup &&'" _ "$setup_cmd"
+check "the Terminal command is valid shell" bash -n -c "$setup_cmd"
 check_not "prefix removed" test -e "$PREFIX"
 run uninstall --all -y; check_not "uninstall --all removes data root" test -e "$AOE_HOME"
 
