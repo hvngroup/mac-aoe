@@ -53,10 +53,40 @@ Thêm từng người thử. Tên chỉ gồm chữ thường, số và dấu g�
 sudo ./add-peer.sh dong-mac
 ```
 
-Lệnh in ra cấu hình WireGuard và lưu ở `/etc/wireguard/peers/<tên>.conf`. Người
-thử thứ nhất nhận IP `10.77.0.11`, người thứ hai `10.77.0.12`, và cứ thế tăng
-dần. Cấu hình có khoá riêng của người thử, nên **gửi riêng cho từng người** qua
-1Password hoặc một file Drive chỉ chia sẻ cho người đó. Không gửi qua chat.
+Lệnh lưu cấu hình WireGuard ở `/etc/wireguard/peers/<tên>.conf` (chỉ root đọc
+được) và chỉ in đường dẫn, không in khoá ra màn hình. Người thử thứ nhất nhận IP
+`10.77.0.11`, người thứ hai `10.77.0.12`, và cứ thế tăng dần. Cấu hình có khoá
+riêng (`PrivateKey`) và khoá chia sẻ (`PresharedKey`) của người thử, nên **gửi
+riêng cho từng người** qua 1Password hoặc một file Drive chỉ chia sẻ cho người
+đó. Không gửi qua chat, không dán vào ticket.
+
+Lấy file về máy quản trị (chạy trên máy của bạn, không phải trên VPS):
+
+```bash
+ssh root@aoe.hvn.works cat /etc/wireguard/peers/dong-mac.conf > dong-mac.conf
+```
+
+Cần xem nội dung ngay trên VPS thì thêm `--print`: `sudo ./add-peer.sh dong-mac --print`.
+
+Nếu khoá đã lộ (ví dụ lỡ dán vào chat), cấp lại khoá mới cho người đó:
+
+```bash
+sudo ./remove-peer.sh dong-mac && sudo ./add-peer.sh dong-mac
+```
+
+### Kiểm tra hub
+
+```bash
+sudo wg show wg0
+```
+```bash
+sudo nft list table inet aoe_hub && sudo iptables -S FORWARD | grep wg0
+```
+
+Kết quả đúng: `wg show` liệt kê các peer; bảng `aoe_hub` có các luật cho cổng
+`2300-2400` và `47624`; `iptables` có dòng `-A FORWARD -i wg0 -o wg0 -j ACCEPT`
+(hoặc `-I`). Khi người thử đã kết nối, dòng `latest handshake` của họ hiện thời
+gian gần nhất.
 
 Gỡ người thử: `sudo ./remove-peer.sh dong-mac`.
 

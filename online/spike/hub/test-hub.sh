@@ -66,13 +66,14 @@ check "setup-hub.sh is idempotent" in_ns hub "$HERE/setup-hub.sh"
 check "exactly one FORWARD accept for wg0 after re-running setup" sh -c "[ \$(ip netns exec aoe-hub iptables -S FORWARD | grep -c -- '-i wg0 -o wg0 -j ACCEPT') -eq 1 ]"
 
 echo "== add-peer.sh"
-in_ns hub "$HERE/add-peer.sh" player-a > "$WORK/a.conf" 2>/dev/null
-in_ns hub "$HERE/add-peer.sh" player-b > "$WORK/b.conf" 2>/dev/null
+check_not "add-peer.sh keeps keys off the terminal by default" sh -c "ip netns exec aoe-hub '$HERE/add-peer.sh' player-a 2>&1 | grep -q PrivateKey"
+in_ns hub "$HERE/add-peer.sh" player-a --print > "$WORK/a.conf" 2>/dev/null
+in_ns hub "$HERE/add-peer.sh" player-b --print > "$WORK/b.conf" 2>/dev/null
 check "player A gets 10.77.0.11" grep -q "Address = 10.77.0.11/16" "$WORK/a.conf"
 check "player B gets 10.77.0.12" grep -q "Address = 10.77.0.12/16" "$WORK/b.conf"
 check "client routes only 10.77.0.0/16 (split tunnel)" grep -q "AllowedIPs = 10.77.0.0/16" "$WORK/a.conf"
 check "client config points at the hub endpoint" grep -q "Endpoint = 203.0.113.1:51820" "$WORK/a.conf"
-check "re-adding a peer prints the same config" sh -c "ip netns exec aoe-hub '$HERE/add-peer.sh' player-a 2>/dev/null | cmp -s - '$WORK/a.conf'"
+check "re-adding a peer prints the same config" sh -c "ip netns exec aoe-hub '$HERE/add-peer.sh' player-a --print 2>/dev/null | cmp -s - '$WORK/a.conf'"
 check_not "invalid peer names are rejected" in_ns hub "$HERE/add-peer.sh" "Bad Name"
 check "hub has two peers" sh -c "[ \$(ip netns exec aoe-hub wg show wg0 peers | wc -l) -eq 2 ]"
 check "peer keys stay private (mode 600)" sh -c "[ \$(stat -c %a '$WORK/hub/peers/player-a.conf') = 600 ]"
@@ -103,7 +104,7 @@ echo "== remove-peer.sh"
 check "remove player B" in_ns hub "$HERE/remove-peer.sh" player-b
 check "hub has one peer left" sh -c "[ \$(ip netns exec aoe-hub wg show wg0 peers | wc -l) -eq 1 ]"
 check_not "A can no longer reach B" in_ns a ping -c 1 -W 2 10.77.0.12
-in_ns hub "$HERE/add-peer.sh" player-c > "$WORK/c.conf" 2>/dev/null
+in_ns hub "$HERE/add-peer.sh" player-c --print > "$WORK/c.conf" 2>/dev/null
 check "freed address is reused" grep -q "Address = 10.77.0.12/16" "$WORK/c.conf"
 
 echo
