@@ -27,7 +27,7 @@ WINEDEBUG=err+all,fixme-all ~/mac-aoe/aoe-mac play
 | Hình bị mờ hoặc muốn đổi bộ lọc | Sửa dòng `shader=` trong `drive_c/Games/AoE/ddraw.ini` (`Nearest neighbor`, `Bilinear`, `Lanczos`). Lưu ý `aoe-mac display`/`update` ghi lại file này |
 | Không có tiếng | Chạy `aoe-mac winecfg`, mở tab **Audio** và chọn thiết bị ra |
 | Phím `Ctrl+số` không gán nhóm quân | Dùng **Command trái** + số. Phím Ctrl thật vẫn dùng được nếu macOS không chiếm tổ hợp đó |
-| Game treo khi thoát | Đóng hết tiến trình Wine của game: `WINEPREFIX="$HOME/Library/Application Support/AoE-Mac/prefix" "$HOME/Library/Application Support/AoE-Mac/wine/Wine Staging.app/Contents/Resources/wine/bin/wineserver" -k` |
+| Terminal đứng ở "Khởi động empires.exe" mà không thấy cửa sổ game, hoặc game treo | Bình thường Terminal chờ đến khi thoát game. Nếu treo: nhấn Ctrl+C, hoặc chạy `aoe-mac stop` ở tab khác. Nếu vừa bật `directplay native`, chạy `aoe-mac directplay wine` rồi thử lại |
 | Muốn cài lại từ đầu | `aoe-mac uninstall`, rồi `aoe-mac install`. Lưu ý bước gỡ cũng xoá bản lưu |
 
 ## Chơi mạng LAN

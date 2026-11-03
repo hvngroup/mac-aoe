@@ -16,6 +16,11 @@ case "${1:-}" in
   *)
     # Game launch: remember the working directory and arguments.
     printf '%s|%s\n' "$(pwd -P)" "$*" >> "$WINEPREFIX/launches.log"
+    if [ -n "${FAKE_WINE_SLEEP:-}" ]; then
+      echo $$ > "$WINEPREFIX/fake-game.pid"
+      sleep "$FAKE_WINE_SLEEP" &
+      wait $!
+    fi
     printf 'WINEDEBUG=%s\n' "${WINEDEBUG:-}"
     printf 'WINEDLLOVERRIDES=%s\n' "${WINEDLLOVERRIDES:-}"
     exit "${FAKE_WINE_EXIT:-0}" ;;

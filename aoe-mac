@@ -45,6 +45,7 @@ Chơi
                               chat hiển thị đúng trên Mac)
   directplay [wine|native]    DirectPlay cho chơi mạng: của Wine (mặc định) hoặc
                               dplayx.dll của Microsoft đi kèm game
+  stop                        Dừng game đang treo (đóng mọi tiến trình Wine của game)
   winecfg                     Mở cấu hình Wine (âm thanh, đồ hoạ)
 
 Hệ thống
@@ -137,6 +138,7 @@ main() {
     renderer) cmd_renderer "$@" ;;
     directplay) cmd_directplay "$@" ;;
     winecfg) cmd_winecfg ;;
+    stop) cmd_stop ;;
     build-app) cmd_build_app "$@" ;;
     doctor) cmd_doctor ;;
     logs) cmd_logs "$@" ;;

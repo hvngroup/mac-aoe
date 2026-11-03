@@ -1,3 +1,8 @@
 #!/bin/bash
-# No-op wineserver for tests.
+# wineserver stand-in for tests: -k kills the fake game, anything else no-op.
+if [ "${1:-}" = "-k" ] && [ -f "${WINEPREFIX:-/nonexistent}/fake-game.pid" ]; then
+  kill "$(cat "$WINEPREFIX/fake-game.pid")" 2>/dev/null
+  rm -f "$WINEPREFIX/fake-game.pid"
+  echo killed >> "$WINEPREFIX/wineserver.log"
+fi
 exit 0

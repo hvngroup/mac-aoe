@@ -183,6 +183,20 @@ assert_contains "log header records the Wine build" "$WORK/out" "wine     : $ROO
 assert_contains "log header records the command" "$WORK/out" "command  : empires.exe"
 assert_contains "Wine errors are logged by default" "$WORK/out" "WINEDEBUG=err+all,fixme-all"
 run logs --path; check "logs --path points to a file" test -f "$(cat "$WORK/out")"
+FAKE_WINE_SLEEP=30 "$AOE_MAC" play >"$WORK/out" 2>&1 &
+playpid=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "$PREFIX/fake-game.pid" ] && break; sleep 0.5; done
+assert_contains "play explains that the terminal waits for the game" "$WORK/out" "Terminal sẽ chờ đến khi bạn thoát game"
+kill -TERM "$playpid"; wait "$playpid"; rc=$?
+assert_eq "stopping a hung game exits with 130" "130" "$rc"
+assert_contains "stopping kills the game's Wine processes" "$PREFIX/wineserver.log" "killed"
+run logs; assert_contains "log records the stop" "$WORK/out" "=== stopped by user"
+FAKE_WINE_SLEEP=30 "$AOE_MAC" play >/dev/null 2>&1 &
+playpid=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "$PREFIX/fake-game.pid" ] && break; sleep 0.5; done
+run stop; assert_eq "aoe-mac stop succeeds" "0" "$?"
+wait "$playpid"; rc=$?
+assert_eq "aoe-mac stop ends a running game" "0" "$([ "$rc" -ne 0 ] && echo 0 || echo "rc=$rc")"
 
 echo "== build-app"
 run build-app --output "$WORK/apps"; assert_eq "build-app succeeds" "0" "$?"

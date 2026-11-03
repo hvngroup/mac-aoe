@@ -66,6 +66,7 @@ Launchpad, rồi chọn **Chơi đơn**, **Chơi mạng LAN**, **Đổi bản c�
 | `aoe-mac directplay native` | Chơi mạng bằng `dplayx.dll` của Microsoft đi kèm game (`wine` để quay lại) |
 | `aoe-mac update` | Lấy bản mới của game. Bản lưu và tuỳ chọn được giữ nguyên |
 | `aoe-mac doctor` | Kiểm tra môi trường khi gặp lỗi |
+| `aoe-mac stop` | Dừng game bị treo (hoặc nhấn Ctrl+C trong Terminal đang chạy game) |
 | `aoe-mac winecfg` | Mở cấu hình Wine (âm thanh, đồ hoạ) |
 | `aoe-mac uninstall` | Gỡ game. Thêm `--all` để gỡ cả Wine |
 
