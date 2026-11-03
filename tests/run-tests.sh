@@ -144,6 +144,20 @@ fi
 check "embedded toolkit sees the install" "$APP/Contents/Resources/toolkit/aoe-mac" status --quiet
 check "launcher syntax" bash -n "$APP/Contents/MacOS/aoe-launcher"
 
+echo "== launcher menu (fake osascript)"
+export FAKE_OSA_LOG="$WORK/osa.log" FAKE_OSA_REPLIES="$WORK/osa.replies"
+launch() { : > "$FAKE_OSA_LOG"; : > "$FAKE_OSA_LOG.scripts"; printf '%s\n' "$@" > "$FAKE_OSA_REPLIES"
+  PATH="$ROOT/tests/fake-osascript:$PATH" "$APP/Contents/MacOS/aoe-launcher" >/dev/null 2>&1; }
+launch 3 2; assert_eq "menu > balance > de switches profile" "de" "$(cat "$GAME/data/empires.dat")"
+assert_contains "Vietnamese menu text passed intact as an argument" "$FAKE_OSA_LOG" "arg:Đổi bản cân bằng..."
+assert_contains "Vietnamese prompt passed intact" "$FAKE_OSA_LOG" "arg:Chọn chế độ"
+assert_contains "confirmation dialog text intact" "$FAKE_OSA_LOG" "arg:Đã chuyển sang bản cân bằng: de"
+assert_eq "AppleScript sources are ASCII-only" "0" "$(LC_ALL=C tr -d '\000-\177' < "$FAKE_OSA_LOG.scripts" | wc -c | tr -d ' ')"
+check_not "launcher never passes text through 'system attribute'" grep -q "(system attribute" "$APP/Contents/MacOS/aoe-launcher"
+before="$(wc -l < "$PREFIX/launches.log")"
+launch 0; assert_eq "cancelling the menu launches nothing" "$before" "$(wc -l < "$PREFIX/launches.log")"
+launch 1; assert_eq "menu > single player launches empires.exe" "$GAME|C:\\Games\\AoE\\empires.exe" "$(tail -n 1 "$PREFIX/launches.log")"
+
 echo "== uninstall"
 AOE_PREFIX="/tmp/not-aoe-$$" run uninstall -y; assert_eq "uninstall refuses prefix outside AOE_HOME" "1" "$?"
 run uninstall -y; assert_eq "uninstall succeeds" "0" "$?"

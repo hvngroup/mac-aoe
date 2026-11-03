@@ -1,0 +1,14 @@
+#!/bin/bash
+# osascript stand-in for launcher tests: records the script and its
+# arguments, then answers with the next line of $FAKE_OSA_REPLIES.
+set -eu
+[ "${1:-}" = "-" ] && shift
+{
+  echo "--- call"
+  for a in "$@"; do printf 'arg:%s\n' "$a"; done
+} >> "$FAKE_OSA_LOG"
+cat >> "$FAKE_OSA_LOG.scripts"
+reply="$(head -n 1 "$FAKE_OSA_REPLIES" 2>/dev/null || true)"
+tail -n +2 "$FAKE_OSA_REPLIES" > "$FAKE_OSA_REPLIES.tmp" 2>/dev/null || true
+mv "$FAKE_OSA_REPLIES.tmp" "$FAKE_OSA_REPLIES"
+printf '%s\n' "$reply"

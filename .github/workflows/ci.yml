@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: shellcheck
-        run: shellcheck -x -P SCRIPTDIR/.. aoe-mac lib/*.sh templates/app-launcher.sh tests/run-tests.sh tests/fake-wine/*
+        run: shellcheck -x -P SCRIPTDIR/.. aoe-mac lib/*.sh templates/app-launcher.sh tests/run-tests.sh tests/fake-wine/* tests/fake-osascript/*
 
   test-macos:
     runs-on: macos-latest

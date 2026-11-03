@@ -1,40 +1,60 @@
 #!/bin/bash
 # Entry point of the .app bundle (Contents/MacOS/aoe-launcher).
 # Shows a small menu, then delegates to the embedded aoe-mac toolkit.
+#
+# Text encoding: every Vietnamese string reaches AppleScript as a command-line
+# argument (on run argv), which osascript decodes as UTF-8. Environment
+# variables read with "system attribute" are decoded as MacRoman and turn
+# diacritics into mojibake, so they must not carry text. AppleScript also
+# returns plain ASCII (indexes, yes/no) so its output encoding never matters.
 set -u
 
 APP_CONTENTS="$(cd "$(dirname "$0")/.." && pwd -P)"
 TOOLKIT="$APP_CONTENTS/Resources/toolkit"
 AOE_MAC="$TOOLKIT/aoe-mac"
 # GUI apps start with a minimal PATH; add the usual Homebrew locations.
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH="${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}:/opt/homebrew/bin:/usr/local/bin"
 
 dialog() {
-  # dialog MESSAGE -> shows an alert (no-op outside macOS)
+  # dialog MESSAGE -> shows an alert (prints to stderr outside macOS)
   command -v osascript >/dev/null 2>&1 || { printf '%s\n' "$1" >&2; return 0; }
-  AOE_MSG="$1" osascript -e 'display alert "AoE RoR" message (system attribute "AOE_MSG")' >/dev/null 2>&1
+  osascript - "$1" >/dev/null 2>&1 <<'OSA'
+on run argv
+  display alert "AoE RoR" message (item 1 of argv)
+end run
+OSA
 }
 
 ask_yes_no() {
+  # ask_yes_no MESSAGE -> success when the player picks "Đồng ý"
   command -v osascript >/dev/null 2>&1 || return 1
   local answer
-  answer="$(AOE_MSG="$1" osascript \
-    -e 'display dialog (system attribute "AOE_MSG") buttons {"Để sau", "Đồng ý"} default button "Đồng ý" with title "AoE RoR"' \
-    -e 'button returned of result' 2>/dev/null)"
-  [ "$answer" = "Đồng ý" ]
+  answer="$(osascript - "$1" "Để sau" "Đồng ý" 2>/dev/null <<'OSA'
+on run argv
+  set r to display dialog (item 1 of argv) buttons {item 2 of argv, item 3 of argv} default button 2 with title "AoE RoR"
+  if button returned of r is (item 3 of argv) then return "yes"
+  return "no"
+end run
+OSA
+)"
+  [ "$answer" = "yes" ]
 }
 
 choose() {
-  # choose PROMPT ITEM... -> prints the chosen item, empty if cancelled
-  local prompt="$1"; shift
-  local list="" item
-  for item in "$@"; do list="$list${list:+|}$item"; done
-  AOE_PROMPT="$prompt" AOE_ITEMS="$list" osascript <<'OSA' 2>/dev/null
-set AppleScript's text item delimiters to "|"
-set theItems to text items of (system attribute "AOE_ITEMS")
-set picked to choose from list theItems with prompt (system attribute "AOE_PROMPT") default items {item 1 of theItems} with title "AoE RoR"
-if picked is false then return ""
-return item 1 of picked
+  # choose PROMPT ITEM... -> prints the 1-based index of the chosen item, 0 if cancelled
+  command -v osascript >/dev/null 2>&1 || { echo 0; return 0; }
+  osascript - "$@" 2>/dev/null <<'OSA' || echo 0
+on run argv
+  set thePrompt to item 1 of argv
+  set theItems to rest of argv
+  set picked to choose from list theItems with prompt thePrompt default items {item 1 of theItems} with title "AoE RoR"
+  if picked is false then return "0"
+  set p to item 1 of picked
+  repeat with i from 1 to count of theItems
+    if (item i of theItems) is p then return (i as text)
+  end repeat
+  return "0"
+end run
 OSA
 }
 
@@ -45,26 +65,30 @@ if ! "$AOE_MAC" status --quiet >/dev/null 2>&1; then
   exit 0
 fi
 
-PLAY_SINGLE="Chơi đơn (empires.exe)"
-PLAY_MULTI="Chơi mạng LAN (EMPIRESX.EXE)"
-BALANCE="Đổi bản cân bằng..."
-DISPLAY="Đổi chế độ hiển thị (cửa sổ / toàn màn hình)"
-UPDATE="Cập nhật game từ repo"
+action="$(choose "Chọn chế độ" \
+  "Chơi đơn (empires.exe)" \
+  "Chơi mạng LAN (EMPIRESX.EXE)" \
+  "Đổi bản cân bằng..." \
+  "Đổi chế độ hiển thị (cửa sổ / toàn màn hình)" \
+  "Cập nhật game từ repo")"
 
-action="$(choose "Chọn chế độ" "$PLAY_SINGLE" "$PLAY_MULTI" "$BALANCE" "$DISPLAY" "$UPDATE")"
 case "$action" in
-  "$PLAY_SINGLE") mode=single ;;
-  "$PLAY_MULTI") mode=multi ;;
-  "$BALANCE")
+  1) mode=single ;;
+  2) mode=multi ;;
+  3)
     picked="$(choose "Bản cân bằng (đang dùng: $("$AOE_MAC" balance current))" \
       "ror - Rise of Rome 1.0" "de - Definitive Edition" "mace - Macedonian siêu mạnh" "original - Dữ liệu gốc")"
-    [ -n "$picked" ] && "$AOE_MAC" balance "${picked%% *}" && dialog "Đã chuyển sang bản cân bằng: ${picked%% *}"
+    case "$picked" in
+      1) profile=ror ;; 2) profile=de ;; 3) profile=mace ;; 4) profile=original ;;
+      *) exit 0 ;;
+    esac
+    "$AOE_MAC" balance "$profile" && dialog "Đã chuyển sang bản cân bằng: $profile"
     exit 0 ;;
-  "$DISPLAY")
+  4)
     if [ "$("$AOE_MAC" display)" = "windowed" ]; then next=fullscreen; else next=windowed; fi
     "$AOE_MAC" display "$next" && dialog "Chế độ hiển thị: $next"
     exit 0 ;;
-  "$UPDATE")
+  5)
     open -a Terminal "$TOOLKIT/update.command"
     exit 0 ;;
   *) exit 0 ;;
