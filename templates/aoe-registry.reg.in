@@ -1,0 +1,33 @@
+REGEDIT4
+
+; Registry the game expects, mirroring what data/setupreg.exe (bundled with
+; the game) writes. @GAME_DIR@ is replaced with the escaped Windows path of
+; the game folder. Imported with the 32-bit regedit so that the 32-bit game
+; finds it under the WoW64 view.
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Games\Age of Empires\1.00]
+"Custom Mouse"=dword:00000001
+"Game File Number"=dword:00000000
+"CDPath"="@GAME_DIR@\\"
+"PID"="00000-000-0000000-00000"
+"InstallType"="3"
+"InstallationDirectory"="@GAME_DIR@"
+"VersionType"="RetailVersion"
+"Version"="1.0b"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Microsoft Games\Age of Empires Expansion\1.0]
+"Version"="1.0"
+"Launched"="1"
+"PID"="00000-000-0000000-00000"
+"EXE Path"="@GAME_DIR@"
+"CDPath"="@GAME_DIR@\\"
+"VersionType"="RetailVersion"
+"InstalledGroup"="3"
+"LangID"=dword:00000009
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\DirectPlay\Applications\Age of Empires Expansion]
+"Guid"="{8701C5C1-337B-11d2-839B-00609707F508}"
+"File"="EmpiresX.Exe"
+"CommandLine"="lobby"
+"CurrentDirectory"="@GAME_DIR@"
+"Path"="@GAME_DIR@"

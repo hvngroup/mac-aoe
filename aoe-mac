@@ -1,0 +1,139 @@
+#!/bin/bash
+# aoe-mac: install and play Age of Empires: The Rise of Rome (HD mod from
+# hvngroup/age_of_empires_ror_hd) on macOS through Wine.
+set -eu
+set -o pipefail
+
+AOE_MAC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck source=lib/common.sh
+. "$AOE_MAC_ROOT/lib/common.sh"
+# shellcheck source=lib/wine.sh
+. "$AOE_MAC_ROOT/lib/wine.sh"
+# shellcheck source=lib/game.sh
+. "$AOE_MAC_ROOT/lib/game.sh"
+# shellcheck source=lib/app.sh
+. "$AOE_MAC_ROOT/lib/app.sh"
+
+usage() {
+  cat <<EOF
+aoe-mac $(cat "$AOE_MAC_ROOT/VERSION" 2>/dev/null) - chơi AoE: The Rise of Rome trên macOS bằng Wine
+
+Cách dùng: aoe-mac <lệnh> [tham số]
+
+Cài đặt
+  setup                       Cài mọi thứ một lần: Wine (nếu chưa có) + game
+  install-wine [-y]           Tải Wine Staging cho macOS (kiểm tra SHA-256)
+  install [--source S] [--ref R]
+                              Cài game vào Wine prefix. S là URL git hoặc
+                              thư mục có sẵn (mặc định: repo hvngroup), R là nhánh
+  update                      Lấy bản mới từ repo, giữ bản lưu và tuỳ chọn
+  build-app [--output DIR] [--name TÊN]
+                              Tạo ứng dụng .app (mặc định ~/Applications/AoE RoR.app)
+
+Chơi
+  play [single|multi] [THAM_SỐ_GAME...]
+                              single = empires.exe (mặc định), multi = EMPIRESX.EXE
+  balance [ror|de|mace|original|status|current]
+                              Đổi bản cân bằng dữ liệu (empires.dat)
+  display [windowed|fullscreen]
+                              Chơi trong cửa sổ hoặc toàn màn hình
+  winecfg                     Mở cấu hình Wine (âm thanh, đồ hoạ)
+
+Hệ thống
+  doctor                      Kiểm tra môi trường, in thông tin chẩn đoán
+  status [--quiet|--log-dir]  Trạng thái cài đặt
+  uninstall [--all] [-y]      Gỡ game (--all: gỡ cả Wine)
+
+Biến môi trường: AOE_HOME (thư mục dữ liệu), AOE_WINE (đường dẫn wine),
+AOE_WINE_URL + AOE_WINE_SHA256 (dùng bản Wine khác), WINEDEBUG.
+EOF
+}
+
+cmd_status() {
+  case "${1:-}" in
+    --quiet)
+      [ -n "$(find_wine || true)" ] && game_installed
+      return ;;
+    --log-dir)
+      printf '%s\n' "$AOE_LOG_DIR"
+      return ;;
+  esac
+  local wine
+  wine="$(find_wine || true)"
+  echo "Thư mục dữ liệu : $AOE_HOME"
+  echo "Wine            : ${wine:-chưa có}"
+  if game_installed; then
+    echo "Game            : đã cài tại $AOE_GAME_DIR"
+    echo "Bản cân bằng    : $(current_balance || true)"
+    echo "Hiển thị        : $(current_display)"
+  else
+    echo "Game            : chưa cài"
+  fi
+}
+
+registry_ok() {
+  WINEPREFIX="$AOE_PREFIX" WINEDEBUG=-all "$WINE_BIN" reg query \
+    'HKLM\SOFTWARE\Microsoft\Games\Age of Empires\1.00' /v InstallationDirectory /reg:32 >/dev/null 2>&1
+}
+
+cmd_doctor() {
+  local ok=1 wine
+  echo "Hệ điều hành : $(uname -s) $(uname -r) ($(uname -m))"
+  if is_macos; then
+    echo "macOS        : $(sw_vers -productVersion 2>/dev/null || echo không rõ)"
+    if rosetta_ready; then echo "Rosetta 2    : OK"; else echo "Rosetta 2    : THIẾU (softwareupdate --install-rosetta --agree-to-license)"; ok=0; fi
+  fi
+  if git_usable; then echo "git          : OK"; else echo "git          : không có (sẽ tải bản zip nếu repo public)"; fi
+  wine="$(find_wine || true)"
+  if [ -n "$wine" ]; then
+    WINE_BIN="$wine"; WINE_BIN_DIR="$(dirname "$wine")"
+    echo "Wine         : $wine ($(wine_version))"
+  else
+    echo "Wine         : THIẾU (aoe-mac install-wine)"; ok=0
+  fi
+  echo "Dữ liệu      : $AOE_HOME"
+  if [ -f "$AOE_PREFIX/system.reg" ]; then echo "Wine prefix  : OK"; else echo "Wine prefix  : chưa tạo"; ok=0; fi
+  if game_installed; then
+    echo "Game         : OK ($AOE_GAME_DIR)"
+    if [ -n "$wine" ]; then
+      if registry_ok; then echo "Registry     : OK"; else echo "Registry     : THIẾU (chạy lại aoe-mac install)"; ok=0; fi
+    fi
+    echo "Cân bằng     : $(current_balance || true)"
+    echo "Hiển thị     : $(current_display)"
+  else
+    echo "Game         : chưa cài (aoe-mac install)"; ok=0
+  fi
+  if [ "$ok" -eq 1 ]; then echo "=> Sẵn sàng chơi."; else echo "=> Còn mục cần xử lý ở trên."; return 1; fi
+}
+
+cmd_setup() {
+  if [ -z "$(find_wine || true)" ]; then
+    cmd_install_wine
+  fi
+  cmd_install "$@"
+}
+
+main() {
+  init_paths
+  local cmd="${1:-help}"
+  [ $# -gt 0 ] && shift
+  case "$cmd" in
+    setup) cmd_setup "$@" ;;
+    install-wine) cmd_install_wine "$@" ;;
+    install) cmd_install "$@" ;;
+    update) cmd_update "$@" ;;
+    play) cmd_play "$@" ;;
+    balance) cmd_balance "$@" ;;
+    display) cmd_display "$@" ;;
+    winecfg) cmd_winecfg ;;
+    build-app) cmd_build_app "$@" ;;
+    doctor) cmd_doctor ;;
+    status) cmd_status "$@" ;;
+    uninstall) cmd_uninstall "$@" ;;
+    version|--version|-v) cat "$AOE_MAC_ROOT/VERSION" ;;
+    help|--help|-h) usage ;;
+    *) usage >&2; die "Lệnh không hợp lệ: $cmd" ;;
+  esac
+}
+
+main "$@"

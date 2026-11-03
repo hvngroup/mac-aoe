@@ -1,0 +1,20 @@
+#!/bin/bash
+# Minimal Wine stand-in for tests. Records what aoe-mac asks Wine to do.
+set -eu
+log="${WINEPREFIX:?}/fake-wine.log"
+mkdir -p "$WINEPREFIX"
+echo "$*" >> "$log"
+case "${1:-}" in
+  --version) echo "wine-fake-1.0" ;;
+  wineboot) mkdir -p "$WINEPREFIX/drive_c/windows/syswow64"; : > "$WINEPREFIX/drive_c/windows/syswow64/regedit.exe"; echo "fake" > "$WINEPREFIX/system.reg" ;;
+  winepath) printf 'Z:%s\r\n' "$(printf '%s' "$3" | tr '/' "\\\\")" ;;
+  regedit|'C:\windows\syswow64\regedit.exe')
+    file="$(printf '%s' "$3" | sed 's/^Z://' | tr "\\\\" '/')"
+    cat "$file" >> "$WINEPREFIX/imported.reg" ;;
+  reg)
+    grep -q "InstallationDirectory" "$WINEPREFIX/imported.reg" 2>/dev/null ;;
+  *)
+    # Game launch: remember the working directory and arguments.
+    printf '%s|%s\n' "$(pwd -P)" "$*" >> "$WINEPREFIX/launches.log"
+    exit "${FAKE_WINE_EXIT:-0}" ;;
+esac

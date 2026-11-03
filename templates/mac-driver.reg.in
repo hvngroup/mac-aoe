@@ -1,0 +1,11 @@
+REGEDIT4
+
+; macOS-specific Wine settings (ignored by Wine on other platforms).
+; LeftCommandIsCtrl: Command+1..9 works like Ctrl+1..9 for unit groups.
+; RetinaMode=n: keep the 8-bit game at its native pixel size on Retina screens.
+; CaptureDisplaysForFullscreen: proper fullscreen when the game switches mode.
+
+[HKEY_CURRENT_USER\Software\Wine\Mac Driver]
+"LeftCommandIsCtrl"="y"
+"RetinaMode"="n"
+"CaptureDisplaysForFullscreen"="y"

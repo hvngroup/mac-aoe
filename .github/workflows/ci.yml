@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck -x -P SCRIPTDIR/.. aoe-mac lib/*.sh templates/app-launcher.sh tests/run-tests.sh tests/fake-wine/*
+
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      # /bin/bash is bash 3.2, the same shell the toolkit uses on users' Macs.
+      - name: tests (bash 3.2, fake Wine)
+        run: /bin/bash tests/run-tests.sh
+
+  test-linux-real-wine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install Wine
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wine wine32:i386 wine64 xvfb rsync
+      - name: tests (fake Wine + real Wine registry import)
+        run: AOE_TEST_REAL_WINE=1 xvfb-run -a bash tests/run-tests.sh
