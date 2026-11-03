@@ -181,7 +181,7 @@ run logs; assert_eq "logs prints the latest log" "0" "$?"
 assert_contains "log records the exit code" "$WORK/out" "=== exit code: 3"
 assert_contains "log header records the Wine build" "$WORK/out" "wine     : $ROOT/tests/fake-wine/wine (wine-fake-1.0)"
 assert_contains "log header records the command" "$WORK/out" "command  : empires.exe"
-assert_contains "Wine errors are logged by default" "$WORK/out" "WINEDEBUG=err+all,fixme-all"
+assert_contains "Wine errors are logged by default" "$WORK/out" "WINEDEBUG=err+all,fixme-all,+loaddll"
 run logs --path; check "logs --path points to a file" test -f "$(cat "$WORK/out")"
 FAKE_WINE_SLEEP=30 "$AOE_MAC" play >"$WORK/out" 2>&1 &
 playpid=$!

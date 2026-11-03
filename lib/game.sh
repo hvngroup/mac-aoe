@@ -439,7 +439,7 @@ cmd_play() {
   # fails to start); the player can still override WINEDEBUG.
   # Run in the background and wait: a GUI program under Wine may ignore
   # Ctrl+C, while "wait" returns at once so the trap can stop the prefix.
-  WINEDEBUG="${WINEDEBUG:-err+all,fixme-all}" wine_run "$AOE_GAME_DIR_WIN\\$exe" "$@" >>"$logfile" 2>&1 &
+  WINEDEBUG="${WINEDEBUG:-$AOE_PLAY_WINEDEBUG}" wine_run "$AOE_GAME_DIR_WIN\\$exe" "$@" >>"$logfile" 2>&1 &
   pid=$!
   AOE_PLAY_LOG="$logfile"
   trap 'stop_on_signal' INT TERM
@@ -453,6 +453,10 @@ cmd_play() {
   ls -1t "$AOE_LOG_DIR"/game-*.log 2>/dev/null | tail -n +11 | while IFS= read -r old; do rm -f "$old"; done
   return $rc
 }
+
+# Default Wine logging for play: errors, plus one line per loaded DLL so a
+# silent hang still shows the last DLL that was loaded.
+AOE_PLAY_WINEDEBUG="err+all,fixme-all,+loaddll"
 
 # Kill every Wine process of the game prefix (hung game, invisible window).
 stop_game_processes() {
@@ -489,7 +493,7 @@ write_log_header() {
   echo "cnc-ddraw: $([ -f "$(cnc_ddraw_dll)" ] && echo "on, renderer=$(ini_get "$AOE_GAME_DIR/ddraw.ini" renderer)" || echo off)"
   echo "wndmode  : $([ -f "$AOE_GAME_DIR/data/wndmode.dll" ] && echo on || echo off) $(grep -E '^(UseWindowMode|CommandLine)=' "$AOE_GAME_DIR/data/wndmode.ini" 2>/dev/null | tr -d '\r' | tr '\n' ' ')"
   echo "directplay: $(config_get DIRECTPLAY wine)"
-  echo "WINEDEBUG: ${WINEDEBUG:-err+all,fixme-all}"
+  echo "WINEDEBUG: ${WINEDEBUG:-$AOE_PLAY_WINEDEBUG}"
   echo "WINEDLLOVERRIDES: ${WINEDLLOVERRIDES:-}"
   echo "=== wine output ==="
 }

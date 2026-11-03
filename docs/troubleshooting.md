@@ -9,7 +9,7 @@ hỗ trợ, hãy dán toàn bộ nội dung này.
 Để có log chi tiết hơn nữa, chạy:
 
 ```bash
-WINEDEBUG=err+all,fixme-all ~/mac-aoe/aoe-mac play
+WINEDEBUG=err+all,fixme-all,+loaddll,+seh ~/mac-aoe/aoe-mac play
 ```
 
 ## Lỗi thường gặp
