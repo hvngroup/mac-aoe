@@ -177,8 +177,8 @@ int main( int argc, char **argv )
             check( TRUE, "joiner received message from the other joiner", 0 );
         }
     }
-    if ( linger && !sent_peer )
-        check( got_peer, "joiner received message from the other joiner", 0 );
+    if ( linger && !sent_peer && !got_peer )
+        check( FALSE, "joiner received message from the other joiner", 0 );
 
     /* Give the unreliable datagram a retry in case the first one was dropped. */
     IDirectPlayX_Send( dp, my_player, host_player, 0, (void *)DPTEST_UDP_MSG,

@@ -10,7 +10,11 @@ static BOOL CALLBACK enum_players_cb( DPID id, DWORD type, const DPNAME *name, D
     printf( "INFO: player 0x%08lx name=%s flags=0x%lx\n", (unsigned long)id,
             name && name->lpszShortNameA ? name->lpszShortNameA : "(null)",
             (unsigned long)flags );
-    (*(int *)ctx)++;
+    /* A system player leaking into the application's player list has no name */
+    if ( name && name->lpszShortNameA )
+        (*(int *)ctx)++;
+    else
+        check( FALSE, "host EnumPlayers lists only application players", 0 );
     return TRUE;
 }
 
@@ -81,8 +85,13 @@ int main( int argc, char **argv )
                 DPMSG_CREATEPLAYERORGROUP *cp = (DPMSG_CREATEPLAYERORGROUP *)buf;
                 printf( "INFO:   new player 0x%08lx name=%s\n", (unsigned long)cp->dpId,
                         cp->dpnName.lpszShortNameA ? cp->dpnName.lpszShortNameA : "(null)" );
-                check( TRUE, "host saw remote player join (DPSYS_CREATEPLAYERORGROUP)", hr );
-                got_join++;
+                if ( cp->dpId != host_player )
+                {
+                    check( TRUE, "host saw remote player join (DPSYS_CREATEPLAYERORGROUP)", hr );
+                    got_join++;
+                }
+                else
+                    check( FALSE, "host must not be notified about its own player", hr );
             }
             continue;
         }

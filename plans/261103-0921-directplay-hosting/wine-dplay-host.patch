@@ -1,0 +1,1293 @@
+diff --git a/dlls/dplayx/dplay.c b/dlls/dplayx/dplay.c
+index e0aa423..1ec420b 100644
+--- a/dlls/dplayx/dplay.c
++++ b/dlls/dplayx/dplay.c
+@@ -300,7 +300,7 @@ static DWORD DP_CopyString( char **dst, const void *src, BOOL dstAnsi, BOOL srcA
+     return size;
+ }
+ 
+-static void *DP_DuplicateString( const void *src, BOOL dstAnsi, BOOL srcAnsi )
++void *DP_DuplicateString( const void *src, BOOL dstAnsi, BOOL srcAnsi )
+ {
+     DWORD size;
+     char *dst;
+@@ -450,6 +450,115 @@ static DWORD DP_CopySetPlayerOrGroupData( DPMSG_GENERIC *genericDst, DPMSG_GENER
+     return offset;
+ }
+ 
++/* A joining machine asks the host to add its system player to the session. Add it, tell the
++ * other machines about it and answer with the name table. */
++static HRESULT DP_HandleAddForwardRequest( IDirectPlayImpl *This, void *messageBody,
++        DWORD messageBodySize, void *messageHeader, void **reply, DWORD *replySize )
++{
++  const WCHAR *requestPassword = L"";
++  DPMSG_FORWARDADDPLAYER *msg;
++  struct PlayerData *player;
++  struct PlayerList *plist;
++  DPPLAYERINFO playerInfo;
++  WCHAR *password;
++  DWORD offset;
++  HRESULT hr;
++
++  if( messageBodySize < sizeof( DPMSG_FORWARDADDPLAYER ) )
++    return DPERR_GENERIC;
++  msg = (DPMSG_FORWARDADDPLAYER *) messageBody;
++
++  offset = msg->createOffset;
++  if( offset < sizeof( DPMSG_FORWARDADDPLAYER ) || offset > messageBodySize )
++    return DPERR_GENERIC;
++
++  hr = DP_MSG_ReadPackedPlayer( (char *) messageBody, &offset, messageBodySize, &playerInfo );
++  if( FAILED( hr ) )
++    return hr;
++
++  if( msg->passwordOffset )
++  {
++    DWORD maxLength;
++
++    if( msg->passwordOffset < sizeof( DPMSG_FORWARDADDPLAYER ) ||
++        msg->passwordOffset >= messageBodySize )
++      return DPERR_GENERIC;
++    maxLength = (messageBodySize - msg->passwordOffset) / sizeof( WCHAR );
++    requestPassword = (const WCHAR *) ((char *) messageBody + msg->passwordOffset);
++    if( wcsnlen( requestPassword, maxLength ) == maxLength )
++      return DPERR_GENERIC;
++  }
++
++  EnterCriticalSection( &This->lock );
++
++  if( !This->dp2->bConnectionOpen || !This->dp2->bHostInterface )
++  {
++    LeaveCriticalSection( &This->lock );
++    return DP_OK;
++  }
++
++  TRACE( "Adding system player 0x%08lx from remote request\n", playerInfo.id );
++
++  password = DP_DuplicateString( This->dp2->lpSessionDesc->lpszPassword, FALSE,
++                                 This->dp2->bAnsiSessionDesc );
++  if( password && *password && wcscmp( password, requestPassword ) )
++  {
++    free( password );
++    LeaveCriticalSection( &This->lock );
++    return DP_MSG_BuildAddForwardReply( This, DPERR_INVALIDPASSWORD, reply, replySize );
++  }
++  free( password );
++
++  if( This->dp2->lpSessionDesc->dwFlags &
++      (DPSESSION_JOINDISABLED | DPSESSION_NEWPLAYERSDISABLED) )
++  {
++    LeaveCriticalSection( &This->lock );
++    return DP_MSG_BuildAddForwardReply( This, DPERR_CANTCREATEPLAYER, reply, replySize );
++  }
++
++  plist = DP_FindPlayer( This, playerInfo.id );
++  if( plist )
++  {
++    WARN( "Player 0x%08lx already exists\n", playerInfo.id );
++    player = plist->lpPData;
++  }
++  else
++  {
++    hr = DP_CreatePlayer( This, messageHeader, &playerInfo.id, &playerInfo.name,
++                          playerInfo.playerData, playerInfo.playerDataLength, playerInfo.spData,
++                          playerInfo.spDataLength, playerInfo.flags & ~DPLAYI_PLAYER_PLAYERLOCAL,
++                          NULL, &player, FALSE );
++    if( FAILED( hr ) )
++    {
++      LeaveCriticalSection( &This->lock );
++      return DP_MSG_BuildAddForwardReply( This, hr, reply, replySize );
++    }
++    player->systemPlayerId = playerInfo.id;
++
++    /* Let the other machines update their name tables */
++    for( plist = DPQ_FIRST( This->dp2->lpSysGroup->players ); plist;
++         plist = DPQ_NEXT( plist->players ) )
++    {
++      struct PlayerData *other = plist->lpPData;
++
++      if( other == player || !(other->dwFlags & DPLAYI_PLAYER_SYSPLAYER) ||
++          (other->dwFlags & DPLAYI_PLAYER_PLAYERLOCAL) )
++        continue;
++
++      hr = DP_MSG_SendAddForward( This, other->dpid, player );
++      if( FAILED( hr ) )
++        ERR( "Failed to forward player 0x%08lx to 0x%08lx: %s\n", player->dpid, other->dpid,
++             DPLAYX_HresultToString( hr ) );
++    }
++  }
++
++  hr = DP_MSG_BuildSuperEnumPlayersReply( This, reply, replySize );
++
++  LeaveCriticalSection( &This->lock );
++
++  return hr;
++}
++
+ /* *lplpReply will be non NULL iff there is something to reply */
+ HRESULT DP_HandleMessage( IDirectPlayImpl *This, void *messageBody,
+         DWORD dwMessageBodySize, void *messageHeader, WORD wCommandId, WORD wVersion,
+@@ -464,7 +573,8 @@ HRESULT DP_HandleMessage( IDirectPlayImpl *This, void *messageBody,
+     /* Name server needs to handle this request */
+     case DPMSGCMD_ENUMSESSIONSREQUEST:
+       /* Reply expected */
+-      NS_ReplyToEnumSessionsRequest( messageBody, lplpReply, lpdwMsgSize, This );
++      NS_ReplyToEnumSessionsRequest( messageBody, dwMessageBodySize, lplpReply, lpdwMsgSize,
++                                     This );
+       break;
+ 
+     /* Name server needs to handle this request */
+@@ -510,6 +620,7 @@ HRESULT DP_HandleMessage( IDirectPlayImpl *This, void *messageBody,
+     }
+ 
+     case DPMSGCMD_CREATESESSION: {
++      struct PlayerData *player;
+       DPMSG_CREATESESSION *msg;
+       DPPLAYERINFO playerInfo;
+       DWORD offset = 0;
+@@ -538,7 +649,7 @@ HRESULT DP_HandleMessage( IDirectPlayImpl *This, void *messageBody,
+       hr = DP_CreatePlayer( This, messageHeader, &msg->playerId, &playerInfo.name,
+                             playerInfo.playerData, playerInfo.playerDataLength, playerInfo.spData,
+                             playerInfo.spDataLength, playerInfo.flags & ~DPLAYI_PLAYER_PLAYERLOCAL,
+-                            NULL, NULL, FALSE );
++                            NULL, &player, FALSE );
+ 
+       if ( FAILED( hr ) )
+       {
+@@ -546,6 +657,8 @@ HRESULT DP_HandleMessage( IDirectPlayImpl *This, void *messageBody,
+         return hr;
+       }
+ 
++      player->systemPlayerId = playerInfo.systemPlayerId;
++
+       LeaveCriticalSection( &This->lock );
+ 
+       break;
+@@ -618,8 +731,12 @@ HRESULT DP_HandleMessage( IDirectPlayImpl *This, void *messageBody,
+       break;
+ 
+     case DPMSGCMD_FORWARDADDPLAYER:
+-      TRACE( "Sending message to self to get my addr\n" );
+-      DP_MSG_ToSelf( This, 1 ); /* This is a hack right now */
++      return DP_HandleAddForwardRequest( This, messageBody, dwMessageBodySize, messageHeader,
++                                         lplpReply, lpdwMsgSize );
++
++    case DPMSGCMD_ADDFORWARDACK:
++      /* The name table of the other players is updated, nothing to do */
++      TRACE( "Name table update acknowledged\n" );
+       break;
+ 
+     case DPMSGCMD_PING: {
+@@ -2186,6 +2303,8 @@ static HRESULT DP_IF_CreatePlayer( IDirectPlayImpl *This, DPID *lpidPlayer,
+     return hr;
+   }
+ 
++  player->systemPlayerId = This->dp2->systemPlayerId;
++
+   hr = DP_MSG_SendCreatePlayer( This, DPID_ALLPLAYERS, *lpidPlayer, dwCreateFlags, player->name,
+                                 lpData, dwDataSize, This->dp2->systemPlayerId );
+   if( FAILED( hr ) )
+@@ -3808,6 +3927,7 @@ static HRESULT DP_SecureOpen( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpsd,
+     This->dp2->lpSessionDesc = DP_DuplicateSessionDesc( sessionDesc, bAnsi, bAnsi );
+     if ( !This->dp2->lpSessionDesc )
+       return DPERR_OUTOFMEMORY;
++    This->dp2->bAnsiSessionDesc = bAnsi;
+   }
+ 
+   /* Invoke the conditional callback for the service provider */
+@@ -3925,12 +4045,14 @@ static HRESULT DP_SecureOpen( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpsd,
+   }
+   else if( dwFlags & DPOPEN_CREATE )
+   {
+-    DWORD createFlags = DPLAYI_PLAYER_APPSERVER | DPLAYI_PLAYER_PLAYERLOCAL;
++    DWORD createFlags = DPLAYI_PLAYER_SYSPLAYER | DPLAYI_PLAYER_NAMESRVR |
++                        DPLAYI_PLAYER_PLAYERLOCAL;
++    struct PlayerData *player;
+ 
+     This->dp2->systemPlayerId = DP_NextObjectId();
+ 
+     hr = DP_CreatePlayer( This, NULL, &This->dp2->systemPlayerId, NULL, NULL, 0, NULL, 0,
+-                          createFlags, NULL, NULL, bAnsi );
++                          createFlags, NULL, &player, bAnsi );
+     if( FAILED( hr ) )
+     {
+       DP_IF_DestroyGroup( This, NULL, DPID_SYSTEM_GROUP, TRUE );
+@@ -3942,6 +4064,8 @@ static HRESULT DP_SecureOpen( IDirectPlayImpl *This, const DPSESSIONDESC2 *lpsd,
+       }
+       return hr;
+     }
++
++    player->systemPlayerId = This->dp2->systemPlayerId;
+   }
+ 
+   EnterCriticalSection( &This->lock );
+@@ -4503,6 +4627,7 @@ static HRESULT DP_SetSessionDesc( IDirectPlayImpl *This, const DPSESSIONDESC2 *l
+   free( This->dp2->lpSessionDesc );
+ 
+   This->dp2->lpSessionDesc = lpTempSessDesc;
++  This->dp2->bAnsiSessionDesc = bAnsi;
+ 
+   /* If this is an external invocation of the interface, we should be
+    * letting everyone know that things have changed. Otherwise this is
+diff --git a/dlls/dplayx/dplay_global.h b/dlls/dplayx/dplay_global.h
+index be20bd3..0e7e09f 100644
+--- a/dlls/dplayx/dplay_global.h
++++ b/dlls/dplayx/dplay_global.h
+@@ -96,6 +96,8 @@ struct PlayerData
+   LPVOID lpSPPlayerData;
+ 
+   DWORD  dwFlags; /* Special remarks about the type of player */
++
++  DPID   systemPlayerId; /* System player of the machine this player lives on */
+ };
+ typedef struct PlayerData* lpPlayerData;
+ 
+@@ -187,6 +189,7 @@ typedef struct tagDirectPlay2Data
+   DPID systemPlayerId;
+ 
+   LPDPSESSIONDESC2 lpSessionDesc;
++  BOOL bAnsiSessionDesc; /* Strings in lpSessionDesc are ANSI */
+ 
+   /* I/O Msg queues */
+   DPQ_HEAD( DPMSG ) receiveMsgs; /* Msg receive queue */
+@@ -229,6 +232,7 @@ HRESULT DP_HandleMessage( IDirectPlayImpl *This, void *messageBody,
+         DWORD  dwMessageBodySize, void *messageHeader, WORD wCommandId, WORD wVersion,
+         void **lplpReply, DWORD *lpdwMsgSize );
+ DPSESSIONDESC2 *DP_DuplicateSessionDesc( const DPSESSIONDESC2 *src, BOOL dstAnsi, BOOL srcAnsi );
++void *DP_DuplicateString( const void *src, BOOL dstAnsi, BOOL srcAnsi );
+ HRESULT DP_HandleGameMessage( IDirectPlayImpl *This, void *messageBody, DWORD messageBodySize,
+                               DPID fromId, DPID toId );
+ HRESULT DP_CreatePlayer( IDirectPlayImpl *This, void *msgHeader, DPID *lpid, DPNAME *lpName,
+diff --git a/dlls/dplayx/dplaysp.c b/dlls/dplayx/dplaysp.c
+index 5ebd42c..6521fa7 100644
+--- a/dlls/dplayx/dplaysp.c
++++ b/dlls/dplayx/dplaysp.c
+@@ -276,6 +276,8 @@ static HRESULT WINAPI IDirectPlaySPImpl_HandleMessage( IDirectPlaySP *iface, voi
+     {
+       ERR( "Reply failed %s\n", DPLAYX_HresultToString(hr) );
+     }
++
++    free( data.lpMessage );
+   }
+ 
+   return hr;
+diff --git a/dlls/dplayx/dplayx_messages.c b/dlls/dplayx/dplayx_messages.c
+index 9af044b..229ff1a 100644
+--- a/dlls/dplayx/dplayx_messages.c
++++ b/dlls/dplayx/dplayx_messages.c
+@@ -390,6 +390,7 @@ HRESULT DP_MSG_ReadPackedPlayer( char *data, DWORD *inoutOffset, DWORD maxSize,
+   playerInfo->flags = packedPlayer->flags;
+   playerInfo->id = packedPlayer->id;
+   playerInfo->versionOrSystemPlayerId = packedPlayer->version;
++  playerInfo->systemPlayerId = packedPlayer->systemPlayerId;
+   playerInfo->playerDataLength = packedPlayer->playerDataLength;
+   playerInfo->spDataLength = packedPlayer->spDataLength;
+   playerInfo->playerCount = packedPlayer->playerCount;
+@@ -459,6 +460,10 @@ static HRESULT DP_MSG_ReadSuperPackedPlayer( char *data, DWORD *inoutOffset, DWO
+   playerInfo->flags = packedPlayer->flags;
+   playerInfo->id = packedPlayer->id;
+   playerInfo->versionOrSystemPlayerId = packedPlayer->versionOrSystemPlayerId;
++  if( packedPlayer->flags & DPLAYI_PLAYER_SYSPLAYER )
++    playerInfo->systemPlayerId = packedPlayer->id;
++  else
++    playerInfo->systemPlayerId = packedPlayer->versionOrSystemPlayerId;
+ 
+   if( packedPlayer->infoMask & DPLAYI_SUPERPACKEDPLAYER_SHORT_NAME_PRESENT )
+   {
+@@ -955,6 +960,348 @@ HRESULT DP_MSG_SendAddForwardAck( IDirectPlayImpl *This, DPID id )
+   return DP_OK;
+ }
+ 
++HRESULT DP_MSG_SendAddForward( IDirectPlayImpl *This, DPID toId, struct PlayerData *player )
++{
++  DPLAYI_PACKEDPLAYER playerInfo;
++  SGBUFFER buffers[ 4 ] = { 0 };
++  DPSP_SENDEXDATA sendData;
++  DPSP_MSG_ADDFORWARD msg;
++  DWORD spPlayerDataSize;
++  void *spPlayerData;
++  HRESULT hr;
++
++  hr = IDirectPlaySP_GetSPPlayerData( This->dp2->spData.lpISP, player->dpid, &spPlayerData,
++                                      &spPlayerDataSize, DPSET_REMOTE );
++  if( FAILED( hr ) )
++    return hr;
++
++  msg.envelope.dwMagic = DPMSGMAGIC_DPLAYMSG;
++  msg.envelope.wCommandId = DPMSGCMD_ADDFORWARD;
++  msg.envelope.wVersion = DPMSGVER_DP6;
++  msg.toId = 0;
++  msg.playerId = player->dpid;
++  msg.groupId = 0;
++  msg.createOffset = sizeof( msg );
++  msg.passwordOffset = 0;
++
++  playerInfo.size = sizeof( playerInfo ) + spPlayerDataSize;
++  playerInfo.flags = (player->dwFlags & ~DPLAYI_PLAYER_PLAYERLOCAL) | DPLAYI_PLAYER_PLAYERINGROUP;
++  playerInfo.id = player->dpid;
++  playerInfo.shortNameLength = 0;
++  playerInfo.longNameLength = 0;
++  playerInfo.spDataLength = spPlayerDataSize;
++  playerInfo.playerDataLength = 0;
++  playerInfo.playerCount = 0;
++  playerInfo.systemPlayerId = player->dpid;
++  playerInfo.fixedSize = sizeof( playerInfo );
++  playerInfo.version = DPMSGVER_DP6;
++  playerInfo.parentId = 0;
++
++  buffers[ 0 ].len = This->dp2->spData.dwSPHeaderSize;
++  buffers[ 0 ].pData = NULL;
++  buffers[ 1 ].len = sizeof( msg );
++  buffers[ 1 ].pData = (UCHAR *)&msg;
++  buffers[ 2 ].len = sizeof( playerInfo );
++  buffers[ 2 ].pData = (UCHAR *)&playerInfo;
++  buffers[ 3 ].len = spPlayerDataSize;
++  buffers[ 3 ].pData = spPlayerData;
++
++  sendData.lpISP = This->dp2->spData.lpISP;
++  sendData.dwFlags = DPSEND_GUARANTEED;
++  sendData.idPlayerTo = toId;
++  sendData.idPlayerFrom = This->dp2->systemPlayerId;
++  sendData.lpSendBuffers = buffers;
++  sendData.cBuffers = ARRAYSIZE( buffers );
++  sendData.dwMessageSize = DP_MSG_ComputeMessageSize( sendData.lpSendBuffers, sendData.cBuffers );
++  sendData.dwPriority = 0;
++  sendData.dwTimeout = 0;
++  sendData.lpDPContext = NULL;
++  sendData.lpdwSPMsgID = NULL;
++  sendData.bSystemMessage = TRUE;
++
++  hr = (*This->dp2->spData.lpCB->SendEx)( &sendData );
++  if( FAILED( hr ) )
++  {
++    ERR( "Send failed: %s\n", DPLAYX_HresultToString( hr ) );
++    return hr;
++  }
++
++  return DP_OK;
++}
++
++HRESULT DP_MSG_BuildAddForwardReply( IDirectPlayImpl *This, HRESULT error, void **reply,
++                                     DWORD *replySize )
++{
++  DPSP_MSG_ADDFORWARDREPLY *msg;
++
++  TRACE( "Refusing to add player: %s\n", DPLAYX_HresultToString( error ) );
++
++  *replySize = This->dp2->spData.dwSPHeaderSize + sizeof( *msg );
++  *reply = calloc( 1, *replySize );
++  if( !*reply )
++  {
++    *replySize = 0;
++    return DPERR_OUTOFMEMORY;
++  }
++
++  msg = (DPSP_MSG_ADDFORWARDREPLY *)( (char *)*reply + This->dp2->spData.dwSPHeaderSize );
++  msg->envelope.dwMagic = DPMSGMAGIC_DPLAYMSG;
++  msg->envelope.wCommandId = DPMSGCMD_FORWARDADDPLAYERNACK;
++  msg->envelope.wVersion = DPMSGVER_DP6;
++  msg->error = error;
++
++  return DP_OK;
++}
++
++static void DP_MSG_Write( char *msg, DWORD *offset, const void *data, DWORD size )
++{
++  if( msg && size )
++    memcpy( msg + *offset, data, size );
++  *offset += size;
++}
++
++static void DP_MSG_WriteString( char *msg, DWORD *offset, const WCHAR *string )
++{
++  DP_MSG_Write( msg, offset, string, (lstrlenW( string ) + 1) * sizeof( WCHAR ) );
++}
++
++/* Writes a DPLAYI_SUPERPACKEDPLAYER at msg + *offset (or only computes its size if msg is NULL).
++ * All the variable sized length fields are written with 4 bytes. */
++static void DP_MSG_WriteSuperPackedPlayer( char *msg, DWORD *offset, DWORD flags, DPID id,
++        DWORD versionOrSystemPlayerId, const DPNAME *name, const void *playerData,
++        DWORD playerDataSize, const void *spData, DWORD spDataSize, const DPID *playerIds,
++        DWORD playerCount, BOOL writePlayerCount, DPID parentId )
++{
++  DWORD start = *offset;
++  DWORD infoMask = 0;
++
++  *offset += sizeof( DPLAYI_SUPERPACKEDPLAYER );
++
++  if( name && name->lpszShortName )
++  {
++    infoMask |= DPLAYI_SUPERPACKEDPLAYER_SHORT_NAME_PRESENT;
++    DP_MSG_WriteString( msg, offset, name->lpszShortName );
++  }
++  if( name && name->lpszLongName )
++  {
++    infoMask |= DPLAYI_SUPERPACKEDPLAYER_LONG_NAME_PRESENT;
++    DP_MSG_WriteString( msg, offset, name->lpszLongName );
++  }
++  if( playerDataSize )
++  {
++    infoMask |= 3 << 4;
++    DP_MSG_Write( msg, offset, &playerDataSize, sizeof( DWORD ) );
++    DP_MSG_Write( msg, offset, playerData, playerDataSize );
++  }
++  if( spDataSize )
++  {
++    infoMask |= 3 << 2;
++    DP_MSG_Write( msg, offset, &spDataSize, sizeof( DWORD ) );
++    DP_MSG_Write( msg, offset, spData, spDataSize );
++  }
++  if( writePlayerCount )
++  {
++    infoMask |= 3 << 6;
++    DP_MSG_Write( msg, offset, &playerCount, sizeof( DWORD ) );
++    DP_MSG_Write( msg, offset, playerIds, playerCount * sizeof( DPID ) );
++  }
++  if( parentId )
++  {
++    infoMask |= DPLAYI_SUPERPACKEDPLAYER_PARENT_ID_PRESENT;
++    DP_MSG_Write( msg, offset, &parentId, sizeof( DPID ) );
++  }
++
++  if( msg )
++  {
++    DPLAYI_SUPERPACKEDPLAYER *packedPlayer = (DPLAYI_SUPERPACKEDPLAYER *)(msg + start);
++
++    packedPlayer->size = 16;
++    packedPlayer->flags = flags;
++    packedPlayer->id = id;
++    packedPlayer->infoMask = infoMask;
++    packedPlayer->versionOrSystemPlayerId = versionOrSystemPlayerId;
++  }
++}
++
++static HRESULT DP_MSG_WriteGroups( IDirectPlayImpl *This, char *msg, DWORD *offset,
++                                   struct GroupData *parent, DWORD *groupCount )
++{
++  struct GroupList *glist;
++
++  for( glist = DPQ_FIRST( parent->groups ); glist; glist = DPQ_NEXT( glist->groups ) )
++  {
++    struct GroupData *group = glist->lpGData;
++    struct PlayerList *plist;
++    DWORD playerCount = 0;
++    DPID *playerIds;
++    HRESULT hr;
++
++    for( plist = DPQ_FIRST( group->players ); plist; plist = DPQ_NEXT( plist->players ) )
++      ++playerCount;
++
++    playerIds = malloc( playerCount * sizeof( DPID ) + 1 );
++    if( !playerIds )
++      return DPERR_OUTOFMEMORY;
++    playerCount = 0;
++    for( plist = DPQ_FIRST( group->players ); plist; plist = DPQ_NEXT( plist->players ) )
++      playerIds[ playerCount++ ] = plist->lpPData->dpid;
++
++    DP_MSG_WriteSuperPackedPlayer( msg, offset, group->dwFlags & ~DPLAYI_PLAYER_PLAYERLOCAL,
++                                   group->dpid, This->dp2->systemPlayerId, group->name,
++                                   group->lpRemoteData, group->dwRemoteDataSize, NULL, 0,
++                                   playerIds, playerCount, TRUE, group->parent );
++    free( playerIds );
++    ++*groupCount;
++
++    hr = DP_MSG_WriteGroups( This, msg, offset, group, groupCount );
++    if( FAILED( hr ) )
++      return hr;
++  }
++
++  return DP_OK;
++}
++
++/* Writes the name table as a DPSP_MSG_SUPERENUMPLAYERSREPLY body at msg (or only computes its
++ * size if msg is NULL). Offsets are relative to the start of the message envelope. */
++static HRESULT DP_MSG_WriteSuperEnumPlayersReply( IDirectPlayImpl *This, char *msg, DWORD *size,
++                                                  const WCHAR *name, const WCHAR *password )
++{
++  DPSP_MSG_SUPERENUMPLAYERSREPLY *reply = (DPSP_MSG_SUPERENUMPLAYERSREPLY *)msg;
++  DPSESSIONDESC2 sessionDesc;
++  struct PlayerList *plist;
++  DWORD descriptionOffset;
++  DWORD passwordOffset = 0;
++  DWORD nameOffset = 0;
++  DWORD playerCount = 0;
++  DWORD groupCount = 0;
++  DWORD packedOffset;
++  DWORD offset;
++  HRESULT hr;
++
++  offset = sizeof( DPSP_MSG_SUPERENUMPLAYERSREPLY );
++
++  sessionDesc = *This->dp2->lpSessionDesc;
++  sessionDesc.dwSize = sizeof( sessionDesc );
++  sessionDesc.lpszSessionName = NULL;
++  sessionDesc.lpszPassword = NULL;
++  descriptionOffset = offset;
++  DP_MSG_Write( msg, &offset, &sessionDesc, sizeof( sessionDesc ) );
++
++  if( name )
++  {
++    nameOffset = offset;
++    DP_MSG_WriteString( msg, &offset, name );
++  }
++  if( password && *password )
++  {
++    passwordOffset = offset;
++    DP_MSG_WriteString( msg, &offset, password );
++  }
++
++  packedOffset = offset;
++
++  for( plist = DPQ_FIRST( This->dp2->lpSysGroup->players ); plist;
++       plist = DPQ_NEXT( plist->players ) )
++  {
++    struct PlayerData *player = plist->lpPData;
++    DWORD spPlayerDataSize = 0;
++    void *spPlayerData = NULL;
++    DWORD versionOrSystemPlayerId;
++    DWORD flags;
++
++    if( FAILED( IDirectPlaySP_GetSPPlayerData( This->dp2->spData.lpISP, player->dpid,
++                                               &spPlayerData, &spPlayerDataSize,
++                                               DPSET_REMOTE ) ) )
++      spPlayerDataSize = 0;
++
++    flags = player->dwFlags & (DPLAYI_PLAYER_SYSPLAYER | DPLAYI_PLAYER_NAMESRVR |
++                               DPLAYI_PLAYER_PLAYERINGROUP | DPLAYI_PLAYER_PLAYERLOCAL);
++    if( flags & DPLAYI_PLAYER_SYSPLAYER )
++    {
++      flags |= DPLAYI_PLAYER_PLAYERINGROUP;
++      versionOrSystemPlayerId = DPMSGVER_DP6;
++    }
++    else
++    {
++      versionOrSystemPlayerId = player->systemPlayerId ? player->systemPlayerId
++                                                       : This->dp2->systemPlayerId;
++    }
++
++    DP_MSG_WriteSuperPackedPlayer( msg, &offset, flags, player->dpid, versionOrSystemPlayerId,
++                                   player->name, player->lpRemoteData, player->dwRemoteDataSize,
++                                   spPlayerData, spPlayerDataSize, NULL, 0, FALSE, 0 );
++    ++playerCount;
++  }
++
++  hr = DP_MSG_WriteGroups( This, msg, &offset, This->dp2->lpSysGroup, &groupCount );
++  if( FAILED( hr ) )
++    return hr;
++
++  if( reply )
++  {
++    reply->envelope.dwMagic = DPMSGMAGIC_DPLAYMSG;
++    reply->envelope.wCommandId = DPMSGCMD_SUPERENUMPLAYERSREPLY;
++    reply->envelope.wVersion = DPMSGVER_DP6;
++    reply->playerCount = playerCount;
++    reply->groupCount = groupCount;
++    reply->packedOffset = packedOffset;
++    reply->shortcutCount = 0;
++    reply->descriptionOffset = descriptionOffset;
++    reply->nameOffset = nameOffset;
++    reply->passwordOffset = passwordOffset;
++    TRACE( "Name table with %lu players and %lu groups, %lu bytes\n", playerCount, groupCount,
++           offset );
++  }
++
++  *size = offset;
++
++  return DP_OK;
++}
++
++/* Must be called with the lock held */
++HRESULT DP_MSG_BuildSuperEnumPlayersReply( IDirectPlayImpl *This, void **reply, DWORD *replySize )
++{
++  WCHAR *password;
++  WCHAR *name;
++  DWORD size;
++  HRESULT hr;
++
++  *reply = NULL;
++  *replySize = 0;
++
++  name = DP_DuplicateString( This->dp2->lpSessionDesc->lpszSessionName, FALSE,
++                             This->dp2->bAnsiSessionDesc );
++  password = DP_DuplicateString( This->dp2->lpSessionDesc->lpszPassword, FALSE,
++                                 This->dp2->bAnsiSessionDesc );
++
++  hr = DP_MSG_WriteSuperEnumPlayersReply( This, NULL, &size, name, password );
++  if( SUCCEEDED( hr ) )
++  {
++    *replySize = This->dp2->spData.dwSPHeaderSize + size;
++    *reply = calloc( 1, *replySize );
++    if( !*reply )
++    {
++      *replySize = 0;
++      hr = DPERR_OUTOFMEMORY;
++    }
++  }
++  if( SUCCEEDED( hr ) )
++    hr = DP_MSG_WriteSuperEnumPlayersReply( This,
++                                            (char *)*reply + This->dp2->spData.dwSPHeaderSize,
++                                            &size, name, password );
++  if( FAILED( hr ) )
++  {
++    free( *reply );
++    *reply = NULL;
++    *replySize = 0;
++  }
++
++  free( password );
++  free( name );
++
++  return hr;
++}
++
+ /* Queue up a structure indicating that we want a reply of type wReplyCommandId. DPlay does
+  * not seem to offer any way of uniquely differentiating between replies of the same type
+  * relative to the request sent. There is an implicit assumption that there will be no
+diff --git a/dlls/dplayx/dplayx_messages.h b/dlls/dplayx/dplayx_messages.h
+index 3e7018f..616ffa4 100644
+--- a/dlls/dplayx/dplayx_messages.h
++++ b/dlls/dplayx/dplayx_messages.h
+@@ -33,6 +33,7 @@ typedef struct
+   DWORD flags;
+   DPID id;
+   DWORD versionOrSystemPlayerId;
++  DPID systemPlayerId;
+   DPNAME name;
+   DWORD playerDataLength;
+   void *playerData;
+@@ -61,6 +62,10 @@ HRESULT DP_MSG_SendAddPlayerToGroup( IDirectPlayImpl *This, DPID toId, DPID play
+                                      DPID groupId );
+ HRESULT DP_MSG_SendPingReply( IDirectPlayImpl *This, DPID toId, DPID fromId, DWORD tickCount );
+ HRESULT DP_MSG_SendAddForwardAck( IDirectPlayImpl *This, DPID id );
++HRESULT DP_MSG_SendAddForward( IDirectPlayImpl *This, DPID toId, struct PlayerData *player );
++HRESULT DP_MSG_BuildSuperEnumPlayersReply( IDirectPlayImpl *This, void **reply, DWORD *replySize );
++HRESULT DP_MSG_BuildAddForwardReply( IDirectPlayImpl *This, HRESULT error, void **reply,
++                                     DWORD *replySize );
+ 
+ void DP_MSG_ReplyReceived( IDirectPlayImpl *This, WORD wCommandId,
+                            LPCVOID lpMsgBody, DWORD dwMsgBodySize,
+diff --git a/dlls/dplayx/name_server.c b/dlls/dplayx/name_server.c
+index 113b8f0..aee7fc2 100644
+--- a/dlls/dplayx/name_server.c
++++ b/dlls/dplayx/name_server.c
+@@ -357,25 +357,82 @@ void NS_PruneSessionCache( LPVOID lpNSInfo )
+ }
+ 
+ /* NAME SERVER Message stuff */
+-void NS_ReplyToEnumSessionsRequest( const void *lpcMsg, void **lplpReplyData, DWORD *lpdwReplySize,
+-        IDirectPlayImpl *lpDP )
++void NS_ReplyToEnumSessionsRequest( const void *lpcMsg, DWORD msgSize, void **lplpReplyData,
++                                    DWORD *lpdwReplySize, IDirectPlayImpl *lpDP )
+ {
++  const DPMSG_ENUMSESSIONSREQUEST *msg = lpcMsg;
++  const WCHAR *requestPassword = NULL;
+   LPDPMSG_ENUMSESSIONSREPLY rmsg;
+-  DWORD dwVariableSize;
+-  DWORD dwVariableLen;
+-  /* LPCDPMSG_ENUMSESSIONSREQUEST msg = (LPDPMSG_ENUMSESSIONSREQUEST)lpcMsg; */
++  DPSESSIONDESC2 *sessionDesc;
++  WCHAR *password = NULL;
++  WCHAR *name = NULL;
++  DWORD nameSize;
+ 
+-  /* FIXME: Should handle ANSI or WIDECHAR input. Currently just ANSI input */
+-  FIXME( ": few fixed + need to check request for response, might need UNICODE input ability.\n" );
++  *lplpReplyData = NULL;
++  *lpdwReplySize = 0;
+ 
+-  dwVariableLen = MultiByteToWideChar( CP_ACP, 0,
+-                                       lpDP->dp2->lpSessionDesc->lpszSessionNameA,
+-                                       -1, NULL, 0 );
+-  dwVariableSize = dwVariableLen * sizeof( WCHAR );
++  if( msgSize < sizeof( *msg ) )
++    return;
++
++  if( msg->passwordOffset )
++  {
++    DWORD maxLength;
++
++    if( msg->passwordOffset < sizeof( *msg ) || msg->passwordOffset >= msgSize )
++      return;
++    maxLength = (msgSize - msg->passwordOffset) / sizeof( WCHAR );
++    requestPassword = (const WCHAR *)((const BYTE *)lpcMsg + msg->passwordOffset);
++    if( wcsnlen( requestPassword, maxLength ) == maxLength )
++      return;
++  }
++
++  EnterCriticalSection( &lpDP->lock );
++
++  /* Only the host of an open session answers */
++  if( !lpDP->dp2->bConnectionOpen || !lpDP->dp2->bHostInterface ||
++      !((lpNSCache)lpDP->dp2->lpNameServerData)->bNsIsLocal )
++    goto done;
++
++  sessionDesc = lpDP->dp2->lpSessionDesc;
++
++  if( !IsEqualGUID( &msg->guidApplication, &GUID_NULL ) &&
++      !IsEqualGUID( &msg->guidApplication, &sessionDesc->guidApplication ) )
++  {
++    TRACE( "application %s does not match %s\n", debugstr_guid( &msg->guidApplication ),
++           debugstr_guid( &sessionDesc->guidApplication ) );
++    goto done;
++  }
+ 
+-  *lpdwReplySize = lpDP->dp2->spData.dwSPHeaderSize +
+-                     sizeof( *rmsg ) + dwVariableSize;
++  if( sessionDesc->dwFlags & DPSESSION_JOINDISABLED )
++    goto done;
++
++  if( (msg->dwFlags & DPENUMSESSIONS_AVAILABLE) && !(msg->dwFlags & DPENUMSESSIONS_ALL) )
++  {
++    if( sessionDesc->dwFlags & DPSESSION_NEWPLAYERSDISABLED )
++      goto done;
++    if( sessionDesc->dwMaxPlayers &&
++        sessionDesc->dwCurrentPlayers >= sessionDesc->dwMaxPlayers )
++      goto done;
++  }
++
++  name = DP_DuplicateString( sessionDesc->lpszSessionName, FALSE, lpDP->dp2->bAnsiSessionDesc );
++  password = DP_DuplicateString( sessionDesc->lpszPassword, FALSE, lpDP->dp2->bAnsiSessionDesc );
++  if( (sessionDesc->lpszSessionName && !name) || (sessionDesc->lpszPassword && !password) )
++    goto done;
++
++  if( password && *password && !(msg->dwFlags & DPENUMSESSIONS_PASSWORDREQUIRED) &&
++      (!requestPassword || wcscmp( password, requestPassword )) )
++    goto done;
++
++  nameSize = name ? (wcslen( name ) + 1) * sizeof( WCHAR ) : sizeof( WCHAR );
++
++  *lpdwReplySize = lpDP->dp2->spData.dwSPHeaderSize + sizeof( *rmsg ) + nameSize;
+   *lplpReplyData = calloc( 1, *lpdwReplySize );
++  if( !*lplpReplyData )
++  {
++    *lpdwReplySize = 0;
++    goto done;
++  }
+ 
+   rmsg = (LPDPMSG_ENUMSESSIONSREPLY)( (BYTE*)*lplpReplyData +
+                                              lpDP->dp2->spData.dwSPHeaderSize);
+@@ -384,9 +441,24 @@ void NS_ReplyToEnumSessionsRequest( const void *lpcMsg, void **lplpReplyData, DW
+   rmsg->envelope.wCommandId = DPMSGCMD_ENUMSESSIONSREPLY;
+   rmsg->envelope.wVersion   = DPMSGVER_DP6;
+ 
+-  CopyMemory( &rmsg->sd, lpDP->dp2->lpSessionDesc,
+-              lpDP->dp2->lpSessionDesc->dwSize );
+-  rmsg->dwUnknown = 0x0000005c;
+-  MultiByteToWideChar( CP_ACP, 0, lpDP->dp2->lpSessionDesc->lpszSessionNameA, -1,
+-                       (LPWSTR)(rmsg+1), dwVariableLen );
++  rmsg->sd = *sessionDesc;
++  rmsg->sd.dwSize = sizeof( DPSESSIONDESC2 );
++  rmsg->sd.lpszSessionName = NULL;
++  rmsg->sd.lpszPassword = NULL;
++  if( password && *password )
++    rmsg->sd.dwFlags |= DPSESSION_PASSWORDREQUIRED;
++  else
++    rmsg->sd.dwFlags &= ~DPSESSION_PASSWORDREQUIRED;
++  /* Offset of the session name from the start of the message */
++  rmsg->dwUnknown = sizeof( *rmsg );
++  if( name )
++    memcpy( rmsg + 1, name, nameSize );
++
++  TRACE( "replying with session %s, %lu/%lu players\n", debugstr_w( name ),
++         sessionDesc->dwCurrentPlayers, sessionDesc->dwMaxPlayers );
++
++done:
++  LeaveCriticalSection( &lpDP->lock );
++  free( password );
++  free( name );
+ }
+diff --git a/dlls/dplayx/name_server.h b/dlls/dplayx/name_server.h
+index 2dbbad1..c858d70 100644
+--- a/dlls/dplayx/name_server.h
++++ b/dlls/dplayx/name_server.h
+@@ -36,10 +36,8 @@ void NS_AddRemoteComputerAsNameServer( LPCVOID lpNSAddrHdr,
+                                        LPVOID lpNSInfo );
+ void NS_SetLocalAddr( LPVOID lpNSInfo, LPCVOID lpHdr, DWORD dwHdrSize );
+ 
+-void NS_ReplyToEnumSessionsRequest( LPCVOID lpcMsg,
+-                                    LPVOID* lplpReplyData,
+-                                    LPDWORD lpdwReplySize,
+-                                    IDirectPlayImpl *lpDP );
++void NS_ReplyToEnumSessionsRequest( const void *lpcMsg, DWORD msgSize, void **lplpReplyData,
++                                    DWORD *lpdwReplySize, IDirectPlayImpl *lpDP );
+ 
+ HRESULT NS_SendSessionRequestBroadcast( LPCGUID lpcGuid,
+                                         DWORD dwFlags,
+diff --git a/dlls/dpwsockx/dpwsockx_dll.h b/dlls/dpwsockx/dpwsockx_dll.h
+index dfb25f4..f48639b 100644
+--- a/dlls/dpwsockx/dpwsockx_dll.h
++++ b/dlls/dpwsockx/dpwsockx_dll.h
+@@ -116,8 +116,19 @@ typedef struct tagDPWS_DATA
+     SOCKADDR_IN           udpAddr;
+     WSAOVERLAPPED         overlapped;
+     WSABUF                wsaBuffer;
++    SOCKADDR_IN           fromAddr;
++    INT                   fromAddrSize;
+     char                  buffer[ 65536 ];
+ 
++    /* Session enumeration listeners, only used by the host */
++    SOCKET                enumTcpSock;
++    SOCKET                enumUdpSock;
++    WSAOVERLAPPED         enumOverlapped;
++    WSABUF                enumWsaBuffer;
++    SOCKADDR_IN           enumFromAddr;
++    INT                   enumFromAddrSize;
++    char                  enumBuffer[ 65536 ];
++
+     CRITICAL_SECTION      sendCs;
+     DPWS_PLAYER           nameserver;
+     DPWS_CONNECTION_REF   nameserverConnectionRef;
+diff --git a/dlls/dpwsockx/dpwsockx_main.c b/dlls/dpwsockx/dpwsockx_main.c
+index 430901b..5f7ef43 100644
+--- a/dlls/dpwsockx/dpwsockx_main.c
++++ b/dlls/dpwsockx/dpwsockx_main.c
+@@ -37,6 +37,11 @@ WINE_DEFAULT_DEBUG_CHANNEL(dplay);
+ #define DPWS_END_UDP_PORT   2400
+ 
+ static void DPWS_MessageBodyReceiveCompleted( DPWS_IN_CONNECTION *connection );
++static HRESULT DPWS_GetConnection( DPWS_DATA *dpwsData, SOCKADDR_IN *addr, BOOL guaranteed,
++                                   DPWS_OUT_CONNECTION **connection );
++static HRESULT DPWS_SendImpl( DPWS_DATA *dpwsData, DPWS_PLAYER *player, SGBUFFER *buffers,
++                              DWORD bufferCount, DWORD messageSize, BOOL guaranteed, BOOL system );
++static int DPWS_CompareConnectionRefs( const void *key, const struct rb_entry *entry );
+ 
+ static int DPWS_CompareConnections( const void *key, const struct rb_entry *entry )
+ {
+@@ -231,32 +236,25 @@ static void DPWS_MessageBodyReceiveCompleted( DPWS_IN_CONNECTION *connection )
+     }
+ }
+ 
+-static void WINAPI DPWS_UdpReceiveCompleted( DWORD error, DWORD transferred,
+-                                             WSAOVERLAPPED *overlapped, DWORD flags )
++static void DPWS_HandleDatagram( IDirectPlaySP *sp, char *buffer, DWORD transferred,
++                                 const SOCKADDR_IN *fromAddr )
+ {
+-    DPWS_DATA *dpwsData = (DPWS_DATA *)overlapped->hEvent;
+     DPSP_MSG_HEADER *header;
+     int messageBodySize;
+     char *messageBody;
+ 
+-    if ( error != ERROR_SUCCESS )
+-    {
+-        ERR( "WSARecv() failed\n" );
+-        return;
+-    }
+-
+-    messageBody = dpwsData->buffer;
++    messageBody = buffer;
+     messageBodySize = transferred;
+     header = NULL;
+ 
+     if ( transferred >= sizeof( DPSP_MSG_HEADER ) + sizeof( DWORD ) )
+     {
+-        DWORD signature = *(DWORD *)&dpwsData->buffer[ sizeof( DPSP_MSG_HEADER ) ];
++        DWORD signature = *(DWORD *)&buffer[ sizeof( DPSP_MSG_HEADER ) ];
+         if ( signature == 0x79616c70 )
+         {
+             int messageSize;
+ 
+-            header = (DPSP_MSG_HEADER *)dpwsData->buffer;
++            header = (DPSP_MSG_HEADER *)buffer;
+             messageSize = DPSP_MSG_SIZE( header->mixed );
+ 
+             if ( messageSize < sizeof( DPSP_MSG_HEADER ))
+@@ -270,24 +268,135 @@ static void WINAPI DPWS_UdpReceiveCompleted( DWORD error, DWORD transferred,
+                 return;
+             }
+ 
+-            messageBody = dpwsData->buffer + sizeof( DPSP_MSG_HEADER );
++            if ( header->SockAddr.sin_addr.s_addr == INADDR_ANY )
++                header->SockAddr.sin_addr = fromAddr->sin_addr;
++
++            messageBody = buffer + sizeof( DPSP_MSG_HEADER );
+             messageBodySize = messageSize - sizeof( DPSP_MSG_HEADER );
+         }
+     }
+ 
+-    IDirectPlaySP_HandleMessage( dpwsData->lpISP, messageBody, messageBodySize, header );
++    IDirectPlaySP_HandleMessage( sp, messageBody, messageBodySize, header );
++}
++
++static void WINAPI DPWS_UdpReceiveCompleted( DWORD error, DWORD transferred,
++                                             WSAOVERLAPPED *overlapped, DWORD flags )
++{
++    DPWS_DATA *dpwsData = (DPWS_DATA *)overlapped->hEvent;
++
++    if ( error != ERROR_SUCCESS )
++    {
++        ERR( "WSARecvFrom() failed\n" );
++        return;
++    }
++
++    DPWS_HandleDatagram( dpwsData->lpISP, dpwsData->buffer, transferred, &dpwsData->fromAddr );
++
++    dpwsData->fromAddrSize = sizeof( dpwsData->fromAddr );
++    if ( SOCKET_ERROR == WSARecvFrom( dpwsData->udpSock, &dpwsData->wsaBuffer, 1, &transferred,
++                                      &flags, (SOCKADDR *)&dpwsData->fromAddr,
++                                      &dpwsData->fromAddrSize, &dpwsData->overlapped,
++                                      DPWS_UdpReceiveCompleted ) )
++    {
++        if ( WSAGetLastError() != WSA_IO_PENDING )
++        {
++            ERR( "WSARecvFrom() failed\n" );
++            return;
++        }
++    }
++}
++
++static void WINAPI DPWS_EnumUdpReceiveCompleted( DWORD error, DWORD transferred,
++                                                 WSAOVERLAPPED *overlapped, DWORD flags )
++{
++    DPWS_DATA *dpwsData = (DPWS_DATA *)overlapped->hEvent;
++
++    if ( error != ERROR_SUCCESS )
++    {
++        ERR( "WSARecvFrom() failed\n" );
++        return;
++    }
++
++    DPWS_HandleDatagram( dpwsData->lpISP, dpwsData->enumBuffer, transferred,
++                         &dpwsData->enumFromAddr );
+ 
+-    if ( SOCKET_ERROR == WSARecv( dpwsData->udpSock, &dpwsData->wsaBuffer, 1, &transferred, &flags,
+-                                  &dpwsData->overlapped, DPWS_UdpReceiveCompleted ) )
++    dpwsData->enumFromAddrSize = sizeof( dpwsData->enumFromAddr );
++    if ( SOCKET_ERROR == WSARecvFrom( dpwsData->enumUdpSock, &dpwsData->enumWsaBuffer, 1,
++                                      &transferred, &flags, (SOCKADDR *)&dpwsData->enumFromAddr,
++                                      &dpwsData->enumFromAddrSize, &dpwsData->enumOverlapped,
++                                      DPWS_EnumUdpReceiveCompleted ) )
+     {
+         if ( WSAGetLastError() != WSA_IO_PENDING )
+         {
+-            ERR( "WSARecv() failed\n" );
++            ERR( "WSARecvFrom() failed\n" );
+             return;
+         }
+     }
+ }
+ 
++static void DPWS_AcceptConnection( DPWS_DATA *dpwsData, SOCKET listenSock )
++{
++    DPWS_IN_CONNECTION *connection;
++    SOCKADDR_IN addr;
++    int addrSize;
++    SOCKET sock;
++
++    addrSize = sizeof( addr );
++    sock = accept( listenSock, (SOCKADDR *)&addr, &addrSize );
++    if ( sock == INVALID_SOCKET )
++    {
++        if ( WSAGetLastError() != WSAEWOULDBLOCK )
++            ERR( "accept() failed\n" );
++        return;
++    }
++
++    connection = calloc( 1, sizeof( DPWS_IN_CONNECTION ) );
++    if ( !connection )
++    {
++        ERR( "failed to allocate required memory.\n" );
++        closesocket( sock );
++        return;
++    }
++
++    connection->addr = addr;
++    connection->tcpSock = sock;
++    connection->overlapped.hEvent = connection;
++    connection->sp = dpwsData->lpISP;
++
++    list_add_tail( &dpwsData->inConnections, &connection->entry );
++
++    if ( FAILED( DPWS_TcpReceive( connection, &connection->header, sizeof( DPSP_MSG_HEADER ),
++                                  DPWS_HeaderReceiveCompleted ) ) )
++        DPWS_RemoveInConnection( connection );
++}
++
++/* Runs on the dpwsockx thread, so that the completion routines of the enumeration socket are
++ * delivered there. */
++static void CALLBACK DPWS_StartEnumListenerApc( ULONG_PTR param )
++{
++    DPWS_DATA *dpwsData = (DPWS_DATA *)param;
++    DWORD transferred;
++    DWORD flags = 0;
++
++    if ( dpwsData->enumTcpSock != INVALID_SOCKET &&
++         SOCKET_ERROR == WSAEventSelect( dpwsData->enumTcpSock, dpwsData->acceptEvent, FD_ACCEPT ) )
++        ERR( "WSAEventSelect() failed\n" );
++
++    dpwsData->enumOverlapped.hEvent = (HANDLE)dpwsData;
++    dpwsData->enumWsaBuffer.len = sizeof( dpwsData->enumBuffer );
++    dpwsData->enumWsaBuffer.buf = dpwsData->enumBuffer;
++    dpwsData->enumFromAddrSize = sizeof( dpwsData->enumFromAddr );
++
++    if ( SOCKET_ERROR == WSARecvFrom( dpwsData->enumUdpSock, &dpwsData->enumWsaBuffer, 1,
++                                      &transferred, &flags, (SOCKADDR *)&dpwsData->enumFromAddr,
++                                      &dpwsData->enumFromAddrSize, &dpwsData->enumOverlapped,
++                                      DPWS_EnumUdpReceiveCompleted ) )
++    {
++        if ( WSAGetLastError() != WSA_IO_PENDING )
++            ERR( "WSARecvFrom() failed\n" );
++    }
++}
++
+ static DWORD WINAPI DPWS_ThreadProc( void *param )
+ {
+     DPWS_DATA *dpwsData = (DPWS_DATA *)param;
+@@ -296,25 +405,24 @@ static DWORD WINAPI DPWS_ThreadProc( void *param )
+ 
+     SetThreadDescription( GetCurrentThread(), L"dpwsockx" );
+ 
+-    if ( SOCKET_ERROR == WSARecv( dpwsData->udpSock, &dpwsData->wsaBuffer, 1, &transferred, &flags,
+-                                  &dpwsData->overlapped, DPWS_UdpReceiveCompleted ) )
++    dpwsData->fromAddrSize = sizeof( dpwsData->fromAddr );
++    if ( SOCKET_ERROR == WSARecvFrom( dpwsData->udpSock, &dpwsData->wsaBuffer, 1, &transferred,
++                                      &flags, (SOCKADDR *)&dpwsData->fromAddr,
++                                      &dpwsData->fromAddrSize, &dpwsData->overlapped,
++                                      DPWS_UdpReceiveCompleted ) )
+     {
+         if ( WSAGetLastError() != WSA_IO_PENDING )
+         {
+-            ERR( "WSARecv() failed\n" );
++            ERR( "WSARecvFrom() failed\n" );
+             return 0;
+         }
+     }
+ 
+     for ( ;; )
+     {
+-        DPWS_IN_CONNECTION *connection;
+         WSANETWORKEVENTS networkEvents;
+         WSAEVENT events[2];
+-        SOCKADDR_IN addr;
+         DWORD waitResult;
+-        int addrSize;
+-        SOCKET sock;
+ 
+         events[ 0 ] = dpwsData->stopEvent;
+         events[ 1 ] = dpwsData->acceptEvent;
+@@ -336,38 +444,20 @@ static DWORD WINAPI DPWS_ThreadProc( void *param )
+             ERR( "WSAEnumNetworkEvents() failed\n" );
+             break;
+         }
++        if ( networkEvents.lNetworkEvents & FD_ACCEPT )
++            DPWS_AcceptConnection( dpwsData, dpwsData->tcpSock );
+ 
+-        addrSize = sizeof( addr );
+-        sock = accept( dpwsData->tcpSock, (SOCKADDR *)&addr, &addrSize );
+-        if ( sock == INVALID_SOCKET )
+-        {
+-            if ( WSAGetLastError() == WSAEWOULDBLOCK )
+-                continue;
+-            ERR( "accept() failed\n" );
+-            break;
+-        }
+-
+-        connection = calloc( 1, sizeof( DPWS_IN_CONNECTION ) );
+-        if ( !connection )
+-        {
+-            ERR( "failed to allocate required memory.\n" );
+-            closesocket( sock );
++        if ( dpwsData->enumTcpSock == INVALID_SOCKET )
+             continue;
+-        }
+-
+-        connection->addr = addr;
+-        connection->tcpSock = sock;
+-        connection->overlapped.hEvent = connection;
+-        connection->sp = dpwsData->lpISP;
+ 
+-        list_add_tail( &dpwsData->inConnections, &connection->entry );
+-
+-        if ( FAILED( DPWS_TcpReceive( connection, &connection->header, sizeof( DPSP_MSG_HEADER ),
+-                                      DPWS_HeaderReceiveCompleted ) ) )
++        if ( SOCKET_ERROR == WSAEnumNetworkEvents( dpwsData->enumTcpSock, dpwsData->acceptEvent,
++                                                   &networkEvents ) )
+         {
+-            DPWS_RemoveInConnection( connection );
+-            continue;
++            ERR( "WSAEnumNetworkEvents() failed\n" );
++            break;
+         }
++        if ( networkEvents.lNetworkEvents & FD_ACCEPT )
++            DPWS_AcceptConnection( dpwsData, dpwsData->enumTcpSock );
+     }
+ 
+     return 0;
+@@ -380,6 +470,9 @@ static HRESULT DPWS_Start( DPWS_DATA *dpwsData )
+     if ( dpwsData->started )
+         return S_OK;
+ 
++    dpwsData->enumTcpSock = INVALID_SOCKET;
++    dpwsData->enumUdpSock = INVALID_SOCKET;
++
+     dpwsData->tcpSock = socket( AF_INET, SOCK_STREAM, IPPROTO_TCP );
+     if ( dpwsData->tcpSock == INVALID_SOCKET )
+     {
+@@ -503,6 +596,11 @@ static void DPWS_Stop( DPWS_DATA *dpwsData )
+                               DPWS_IN_CONNECTION, entry )
+         DPWS_RemoveInConnection( inConnection );
+ 
++    if ( dpwsData->enumUdpSock != INVALID_SOCKET )
++        closesocket( dpwsData->enumUdpSock );
++    if ( dpwsData->enumTcpSock != INVALID_SOCKET )
++        closesocket( dpwsData->enumTcpSock );
++
+     DeleteCriticalSection( &dpwsData->sendCs );
+     WSACloseEvent( dpwsData->stopEvent );
+     closesocket( dpwsData->udpSock );
+@@ -510,6 +608,59 @@ static void DPWS_Stop( DPWS_DATA *dpwsData )
+     closesocket( dpwsData->tcpSock );
+ }
+ 
++static HRESULT DPWS_StartEnumListener( DPWS_DATA *dpwsData )
++{
++    SOCKADDR_IN addr;
++
++    if ( dpwsData->enumUdpSock != INVALID_SOCKET )
++        return DP_OK;
++
++    memset( &addr, 0, sizeof( addr ) );
++    addr.sin_family = AF_INET;
++    addr.sin_addr.s_addr = htonl( INADDR_ANY );
++    addr.sin_port = htons( DPWS_PORT );
++
++    dpwsData->enumUdpSock = socket( AF_INET, SOCK_DGRAM, IPPROTO_UDP );
++    if ( dpwsData->enumUdpSock == INVALID_SOCKET )
++    {
++        ERR( "socket() failed\n" );
++        return DPERR_UNAVAILABLE;
++    }
++
++    if ( SOCKET_ERROR == bind( dpwsData->enumUdpSock, (SOCKADDR *)&addr, sizeof( addr ) ) )
++    {
++        ERR( "bind() to UDP port %d failed: %d\n", DPWS_PORT, WSAGetLastError() );
++        closesocket( dpwsData->enumUdpSock );
++        dpwsData->enumUdpSock = INVALID_SOCKET;
++        return DPERR_UNAVAILABLE;
++    }
++
++    /* Enumeration requests sent to a specific address may also arrive over TCP. Failing to listen
++     * there is not fatal, broadcast enumeration only needs the UDP socket. */
++    dpwsData->enumTcpSock = socket( AF_INET, SOCK_STREAM, IPPROTO_TCP );
++    if ( dpwsData->enumTcpSock != INVALID_SOCKET &&
++         ( SOCKET_ERROR == bind( dpwsData->enumTcpSock, (SOCKADDR *)&addr, sizeof( addr ) ) ||
++           SOCKET_ERROR == listen( dpwsData->enumTcpSock, SOMAXCONN ) ) )
++    {
++        WARN( "unable to listen on TCP port %d: %d\n", DPWS_PORT, WSAGetLastError() );
++        closesocket( dpwsData->enumTcpSock );
++        dpwsData->enumTcpSock = INVALID_SOCKET;
++    }
++
++    if ( !QueueUserAPC( DPWS_StartEnumListenerApc, dpwsData->thread, (ULONG_PTR)dpwsData ) )
++    {
++        ERR( "QueueUserAPC() failed\n" );
++        if ( dpwsData->enumTcpSock != INVALID_SOCKET )
++            closesocket( dpwsData->enumTcpSock );
++        closesocket( dpwsData->enumUdpSock );
++        dpwsData->enumTcpSock = INVALID_SOCKET;
++        dpwsData->enumUdpSock = INVALID_SOCKET;
++        return DPERR_UNAVAILABLE;
++    }
++
++    return DP_OK;
++}
++
+ static HRESULT WINAPI DPWSCB_EnumSessions( LPDPSP_ENUMSESSIONSDATA data )
+ {
+     DPSP_MSG_HEADER *header = (DPSP_MSG_HEADER *) data->lpMessage;
+@@ -573,10 +724,59 @@ static HRESULT WINAPI DPWSCB_EnumSessions( LPDPSP_ENUMSESSIONSDATA data )
+ 
+ static HRESULT WINAPI DPWSCB_Reply( LPDPSP_REPLYDATA data )
+ {
+-    FIXME( "(%p,%p,%ld,%ld,%p) stub\n",
++    DPSP_MSG_HEADER *header = (DPSP_MSG_HEADER *) data->lpSPMessageHeader;
++    DPWS_CONNECTION_REF connectionRef = { 0 };
++    DPWS_PLAYER replyTarget = { 0 };
++    SGBUFFER buffers[ 2 ];
++    DPWS_DATA *dpwsData;
++    DWORD dpwsDataSize;
++    SOCKADDR_IN addr;
++    HRESULT hr;
++
++    TRACE( "(%p,%p,%ld,%ld,%p)\n",
+            data->lpSPMessageHeader, data->lpMessage, data->dwMessageSize,
+            data->idNameServer, data->lpISP );
+-    return DPERR_UNSUPPORTED;
++
++    if ( !header || data->dwMessageSize < sizeof( DPSP_MSG_HEADER ) )
++        return DPERR_INVALIDPARAMS;
++
++    hr = IDirectPlaySP_GetSPData( data->lpISP, (void **) &dpwsData, &dpwsDataSize, DPSET_LOCAL );
++    if ( FAILED( hr ) )
++        return hr;
++
++    /* The reply goes to the stream socket the requester announced in its message header, at the
++     * address the request came from. */
++    memset( &addr, 0, sizeof( addr ) );
++    addr.sin_family = AF_INET;
++    addr.sin_addr = header->SockAddr.sin_addr;
++    addr.sin_port = header->SockAddr.sin_port;
++
++    TRACE( "replying to %s:%u\n", inet_ntoa( addr.sin_addr ), ntohs( addr.sin_port ) );
++
++    EnterCriticalSection( &dpwsData->sendCs );
++
++    hr = DPWS_GetConnection( dpwsData, &addr, TRUE, &connectionRef.connection );
++    if ( FAILED( hr ) )
++    {
++        LeaveCriticalSection( &dpwsData->sendCs );
++        return hr;
++    }
++
++    connectionRef.ref = 1;
++    rb_init( &replyTarget.connectionRefs, DPWS_CompareConnectionRefs );
++    rb_put( &replyTarget.connectionRefs, &connectionRef.connection->key, &connectionRef.entry );
++
++    buffers[ 0 ].len = sizeof( DPSP_MSG_HEADER );
++    buffers[ 0 ].pData = NULL;
++    buffers[ 1 ].len = data->dwMessageSize - sizeof( DPSP_MSG_HEADER );
++    buffers[ 1 ].pData = (UCHAR *) data->lpMessage + sizeof( DPSP_MSG_HEADER );
++
++    hr = DPWS_SendImpl( dpwsData, &replyTarget, buffers, ARRAYSIZE( buffers ),
++                        data->dwMessageSize, TRUE, TRUE );
++
++    LeaveCriticalSection( &dpwsData->sendCs );
++
++    return hr;
+ }
+ 
+ static HRESULT WINAPI DPWSCB_Send( LPDPSP_SENDDATA data )
+@@ -897,12 +1097,6 @@ static HRESULT WINAPI DPWSCB_Open( LPDPSP_OPENDATA data )
+            data->bCreate, data->lpSPMessageHeader, data->lpISP,
+            data->bReturnStatus, data->dwOpenFlags, data->dwSessionFlags );
+ 
+-    if ( data->bCreate )
+-    {
+-        FIXME( "session creation is not yet supported\n" );
+-        return DPERR_UNSUPPORTED;
+-    }
+-
+     hr = IDirectPlaySP_GetSPData( data->lpISP, (void **)&dpwsData, &dpwsDataSize, DPSET_LOCAL );
+     if ( FAILED( hr ) )
+         return hr;
+@@ -911,13 +1105,19 @@ static HRESULT WINAPI DPWSCB_Open( LPDPSP_OPENDATA data )
+     if ( FAILED (hr) )
+         return hr;
+ 
++    rb_init( &dpwsData->nameserver.connectionRefs, DPWS_CompareConnectionRefs );
++
++    if ( data->bCreate )
++        return DPWS_StartEnumListener( dpwsData );
++
++    if ( !header )
++        return DPERR_INVALIDPARAMS;
++
+     memset( &nameserverAddr, 0, sizeof( nameserverAddr ) );
+     nameserverAddr.sin_family = AF_INET;
+     nameserverAddr.sin_addr = header->SockAddr.sin_addr;
+     nameserverAddr.sin_port = header->SockAddr.sin_port;
+ 
+-    rb_init( &dpwsData->nameserver.connectionRefs, DPWS_CompareConnectionRefs );
+-
+     hr = DPWS_GetConnection( dpwsData, &nameserverAddr, TRUE,
+                              &dpwsData->nameserverConnectionRef.connection );
+     if ( FAILED( hr ) )

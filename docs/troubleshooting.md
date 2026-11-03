@@ -38,7 +38,7 @@ Có hai lựa chọn:
 | `aoe-mac directplay` | Vào phòng (Join) | Tạo phòng (Create) | Ghi chú |
 |----------------------|------------------|--------------------|---------|
 | `wine` (mặc định) | Được | Chưa được | Wine trả về `session creation is not yet supported` (mã nguồn `dlls/dpwsockx/dpwsockx_main.c`, Wine 11.21 và master) |
-| `microsoft` | Đang thử nghiệm | Đang thử nghiệm | Bộ DirectPlay 5.3 đầy đủ của Microsoft, lấy từ gói DirectX tháng 2/2010 (cách winetricks làm) |
+| `microsoft` | Chưa thử giữa 2 máy Mac | Được (đã chạy trên MacBook Pro M5 Max, macOS 27.0.1, Wine 11.21) | Bộ DirectPlay 5.3 đầy đủ của Microsoft, lấy từ gói DirectX tháng 2/2010 (cách winetricks làm) |
 
 `aoe-mac directplay microsoft` làm các việc sau:
 
@@ -66,13 +66,14 @@ Bộ công cụ đã được kiểm tra tự động: cài đặt, registry, đ
 nhật và tạo app. Phần chạy game trên Mac thật cần người kiểm tra:
 
 - [ ] Intel Mac: `aoe-mac setup` chạy xong, `aoe-mac doctor` báo sẵn sàng
-- [ ] Apple Silicon: như trên, có bước cài Rosetta
-- [ ] Mở `AoE RoR.app`, vào được menu chính của game
+- [x] Apple Silicon: `aoe-mac setup` chạy xong (M5 Max, macOS 27.0.1)
+- [x] Vào được menu chính của game (chế độ hiển thị `cnc`, renderer `gdi`)
 - [ ] Chơi một ván Random Map 15 phút: âm thanh, cuộn bản đồ, chọn nhóm quân
 - [ ] Bug reset ruộng (`S`) vẫn hoạt động
 - [ ] Đổi bản cân bằng `de`, vào game và thấy chỉ số đã đổi
 - [ ] Máy Mac vào phòng do máy Windows tạo (LAN)
-- [ ] `directplay microsoft`: máy Mac tạo phòng, máy Mac khác vào phòng
+- [x] `directplay microsoft`: máy Mac tạo phòng (M5 Max, macOS 27.0.1)
+- [ ] `directplay microsoft`: máy Mac khác vào phòng và chơi hết một ván
 - [ ] Lưu game, `aoe-mac update`, mở lại bản lưu
 
 Gửi kết quả và log về kythuat@hvn.vn.
