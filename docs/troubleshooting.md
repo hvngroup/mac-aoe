@@ -2,8 +2,11 @@
 
 Luôn chạy `aoe-mac doctor` trước. Lệnh này chỉ ra mục nào còn thiếu. Log của
 10 lần chơi gần nhất nằm ở `~/Library/Application Support/AoE-Mac/logs/`.
+`aoe-mac logs` in 200 dòng cuối của lần chơi gần nhất, gồm thông tin máy, bản
+Wine, lệnh đã chạy, các lỗi Wine báo ra và mã thoát của game. Khi gửi yêu cầu
+hỗ trợ, hãy dán toàn bộ nội dung này.
 
-Để có log chi tiết hơn, chạy:
+Để có log chi tiết hơn nữa, chạy:
 
 ```bash
 WINEDEBUG=err+all,fixme-all ~/mac-aoe/aoe-mac play

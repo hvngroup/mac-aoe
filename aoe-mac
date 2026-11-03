@@ -41,6 +41,7 @@ Chơi
 
 Hệ thống
   doctor                      Kiểm tra môi trường, in thông tin chẩn đoán
+  logs [--path]               In 200 dòng cuối của log lần chơi gần nhất
   status [--quiet|--log-dir]  Trạng thái cài đặt
   uninstall [--all] [-y]      Gỡ game (--all: gỡ cả Wine)
 
@@ -128,6 +129,7 @@ main() {
     winecfg) cmd_winecfg ;;
     build-app) cmd_build_app "$@" ;;
     doctor) cmd_doctor ;;
+    logs) cmd_logs "$@" ;;
     status) cmd_status "$@" ;;
     uninstall) cmd_uninstall "$@" ;;
     version|--version|-v) cat "$AOE_MAC_ROOT/VERSION" ;;

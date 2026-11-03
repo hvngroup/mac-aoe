@@ -128,6 +128,12 @@ assert_eq "game launched from its folder with args" "$GAME|C:\\Games\\AoE\\empir
 assert_eq "multiplayer uses EMPIRESX.EXE" "$GAME|C:\\Games\\AoE\\EMPIRESX.EXE" "$(sed -n 2p "$PREFIX/launches.log")"
 FAKE_WINE_EXIT=3 run play; assert_eq "play propagates game exit code" "3" "$?"
 check "game log written" ls "$AOE_HOME/logs"/game-*.log
+run logs; assert_eq "logs prints the latest log" "0" "$?"
+assert_contains "log records the exit code" "$WORK/out" "=== exit code: 3"
+assert_contains "log header records the Wine build" "$WORK/out" "wine     : $ROOT/tests/fake-wine/wine (wine-fake-1.0)"
+assert_contains "log header records the command" "$WORK/out" "command  : empires.exe"
+assert_contains "Wine errors are logged by default" "$WORK/out" "WINEDEBUG=err+all,fixme-all"
+run logs --path; check "logs --path points to a file" test -f "$(cat "$WORK/out")"
 
 echo "== build-app"
 run build-app --output "$WORK/apps"; assert_eq "build-app succeeds" "0" "$?"
@@ -156,6 +162,7 @@ assert_eq "AppleScript sources are ASCII-only" "0" "$(LC_ALL=C tr -d '\000-\177'
 check_not "launcher never passes text through 'system attribute'" grep -q "(system attribute" "$APP/Contents/MacOS/aoe-launcher"
 before="$(wc -l < "$PREFIX/launches.log")"
 launch 0; assert_eq "cancelling the menu launches nothing" "$before" "$(wc -l < "$PREFIX/launches.log")"
+FAKE_WINE_EXIT=5 launch 1 no; assert_contains "crash dialog shows the exit code" "$FAKE_OSA_LOG" "arg:Game thoát bất thường (mã 5). Mở file log để gửi bộ phận kỹ thuật?"
 launch 1; assert_eq "menu > single player launches empires.exe" "$GAME|C:\\Games\\AoE\\empires.exe" "$(tail -n 1 "$PREFIX/launches.log")"
 
 echo "== uninstall"

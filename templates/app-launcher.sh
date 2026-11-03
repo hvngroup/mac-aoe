@@ -94,6 +94,11 @@ case "$action" in
   *) exit 0 ;;
 esac
 
-if ! "$AOE_MAC" play "$mode"; then
-  dialog "Game thoát bất thường. Xem log trong: $("$AOE_MAC" status --log-dir)"
+rc=0
+"$AOE_MAC" play "$mode" || rc=$?
+if [ "$rc" -ne 0 ]; then
+  logfile="$("$AOE_MAC" logs --path 2>/dev/null)"
+  if ask_yes_no "Game thoát bất thường (mã $rc). Mở file log để gửi bộ phận kỹ thuật?"; then
+    if [ -n "$logfile" ]; then open -e "$logfile"; else open "$("$AOE_MAC" status --log-dir)"; fi
+  fi
 fi

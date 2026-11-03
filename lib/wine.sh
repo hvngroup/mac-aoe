@@ -41,7 +41,7 @@ require_wine() {
   WINE_BIN_DIR="$(dirname "$WINE_BIN")"
 }
 
-wine_version() { "$WINE_BIN" --version 2>/dev/null || echo "không rõ"; }
+wine_version() { WINEPREFIX="$AOE_PREFIX" "$WINE_BIN" --version 2>/dev/null || echo "không rõ"; }
 
 # Run a Wine command inside our prefix. Caller sets extra env if needed.
 wine_run() {
