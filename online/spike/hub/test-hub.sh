@@ -34,6 +34,15 @@ trap cleanup EXIT
 # --- topology: A and B each reach the hub's public address 203.0.113.1 ---
 for ns in hub a b; do ip netns add "aoe-$ns"; in_ns "$ns" ip link set lo up; done
 in_ns hub ip addr add 203.0.113.1/32 dev lo
+if [ -n "${AOE_TEST_DOCKER:-}" ]; then
+  # What Docker (and so Coolify) leaves on a host: forwarding dropped by
+  # default, with the DOCKER-USER chain jumped to first for local rules.
+  echo "== simulating a Docker/Coolify host"
+  in_ns hub iptables -P FORWARD DROP
+  in_ns hub iptables -N DOCKER-USER
+  in_ns hub iptables -A DOCKER-USER -j RETURN
+  in_ns hub iptables -A FORWARD -j DOCKER-USER
+fi
 i=0
 for ns in a b; do
   i=$((i + 1))
@@ -54,6 +63,7 @@ check "setup-hub.sh brings wg0 up" in_ns hub "$HERE/setup-hub.sh"
 check "hub listens on UDP 51820" sh -c "ip netns exec aoe-hub ss -uln | grep -q ':51820 '"
 check "firewall table loaded" in_ns hub nft list table inet aoe_hub
 check "setup-hub.sh is idempotent" in_ns hub "$HERE/setup-hub.sh"
+check "exactly one FORWARD accept for wg0 after re-running setup" sh -c "[ \$(ip netns exec aoe-hub iptables -S FORWARD | grep -c -- '-i wg0 -o wg0 -j ACCEPT') -eq 1 ]"
 
 echo "== add-peer.sh"
 in_ns hub "$HERE/add-peer.sh" player-a > "$WORK/a.conf" 2>/dev/null

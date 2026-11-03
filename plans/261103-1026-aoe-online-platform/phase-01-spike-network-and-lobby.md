@@ -70,7 +70,7 @@ viết dòng code sản phẩm nào:
 
 ## Tiến độ (2026-11-03)
 
-- [x] Script hub: test trong network namespace Linux đạt 25/25. TCP 2300 và UDP 47624 qua được, TCP 22 bị chặn, máy bị gỡ không vào được nữa, địa chỉ được dùng lại
+- [x] Script hub: test trong network namespace Linux đạt 26/26, cả máy thường lẫn máy mô phỏng tường lửa Docker/Coolify (chuỗi FORWARD mặc định DROP). TCP 2300 và UDP 47624 qua được, TCP 22 bị chặn, máy bị gỡ không vào được nữa, địa chỉ được dùng lại
 - [x] `aoelobby.exe`: test trên Wine (Linux, DirectPlay của Wine) đạt 14/14. Chương trình giả lập game nhận đúng vai trò, IP chủ phòng, GUID phiên, tên người chơi, số người tối đa
 - [x] `aoe-mac lobby` chạy `aoelobby.exe` trong prefix của mac-aoe với cùng DLL override như lúc chơi
 - [ ] Dựng hub trên VPS `aoe.hvn.works`

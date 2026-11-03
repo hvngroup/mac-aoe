@@ -12,14 +12,33 @@ Công cụ nằm trong `online/spike/` của repo này.
 
 | Công cụ | Việc | Đã kiểm tra |
 |---------|------|-------------|
-| `hub/setup-hub.sh` | Dựng hub WireGuard trên VPS | Test 25/25 trong network namespace Linux (`hub/test-hub.sh`) |
+| `hub/setup-hub.sh` | Dựng hub WireGuard trên VPS, kể cả VPS có Coolify/Docker | Test 26/26 trong network namespace Linux (`hub/test-hub.sh`), cả máy thường lẫn máy mô phỏng tường lửa Docker |
 | `hub/add-peer.sh`, `remove-peer.sh` | Cấp hoặc gỡ cấu hình cho người thử | Như trên |
 | `aoelobby/bin/aoelobby.exe` | Mở game vào phòng qua DirectPlay Lobby | Test 14/14 trên Wine với chương trình giả lập game (`aoelobby/run-lobby-test.sh`). Chưa thử với game thật |
 
 ## 1. Dựng hub trên VPS (quản trị, khoảng 10 phút)
 
-Yêu cầu: VPS Ubuntu 24.04 có IP công khai, bản ghi DNS `aoe.hvn.works` trỏ về
-VPS, mở cổng **51820/UDP** trên tường lửa của nhà cung cấp.
+### Yêu cầu VPS
+
+| Mục | Yêu cầu |
+|-----|---------|
+| Hệ điều hành | Ubuntu 22.04 hoặc 24.04 (cùng loại Coolify hỗ trợ). Kernel đã có sẵn WireGuard |
+| Cấu hình | Hub gần như không tốn tài nguyên. Để chạy chung Coolify và backend ở các phase sau: 2 vCPU, 4 GB RAM, 40 GB SSD |
+| Mạng | IPv4 công khai. Mở cổng **51820/UDP** trên tường lửa của nhà cung cấp VPS |
+| Quyền | Tài khoản root hoặc sudo qua SSH |
+| DNS | Bản ghi A `aoe.hvn.works` trỏ về IP của VPS. Nếu DNS ở Cloudflare, để chế độ **DNS only** (mây xám): proxy của Cloudflare không chuyển tiếp UDP 51820 |
+
+### VPS đã cài Coolify
+
+Dùng được. Coolify chiếm các cổng 22, 80, 443, 8000, 6001, 6002; hub dùng
+51820/UDP nên không trùng. Coolify cài Docker, mà Docker đặt chính sách mặc
+định của chuỗi `FORWARD` (iptables) là chặn mọi gói chuyển tiếp. `setup-hub.sh`
+tự thêm một luật cho phép chuyển tiếp từ `wg0` sang `wg0`, và cho hub khởi động
+sau Docker. Việc chặn cổng vẫn do bảng nftables của hub đảm nhận. Hub chạy
+thẳng trên máy chủ, không chạy trong Coolify. Đã kiểm tra bằng
+`AOE_TEST_DOCKER=1 test-hub.sh`, mô phỏng tường lửa của Docker: 26/26.
+
+### Cài đặt
 
 ```bash
 git clone https://github.com/hvngroup/mac-aoe.git && cd mac-aoe/online/spike/hub
@@ -127,6 +146,9 @@ Gửi kết quả về kythuat@hvn.vn. Kết quả sẽ được tổng hợp v�
 
 ```bash
 sudo online/spike/hub/test-hub.sh
+```
+```bash
+sudo AOE_TEST_DOCKER=1 online/spike/hub/test-hub.sh
 ```
 ```bash
 xvfb-run -a online/spike/aoelobby/run-lobby-test.sh

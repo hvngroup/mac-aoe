@@ -17,9 +17,11 @@ dependencies: [1, 2, 3, 4, 5, 6]
 
 ### Hạ tầng
 
-- VPS HVN Cloud 2 vCPU / 4 GB / 40 GB SSD, đặt tại Việt Nam. Docker Compose:
-  `server`, `wghub` (process riêng, có `CAP_NET_ADMIN`), `postgres`, `caddy`
-- Tên miền `aoe.hvn.works` và TLS (Caddy tự cấp chứng chỉ). Mở cổng 443/TCP và 51820/UDP
+- VPS có Coolify, 2 vCPU / 4 GB / 40 GB SSD, đặt tại Việt Nam. Coolify triển khai
+  `server` và `postgres` (Docker Compose), proxy của Coolify cấp TLS cho
+  `aoe.hvn.works`. `wghub` chạy trên máy chủ bằng systemd, có `CAP_NET_ADMIN`,
+  vì phải quản lý `wg0` và nftables của máy chủ
+- Mở cổng 443/TCP và 51820/UDP. Tường lửa Docker đã được xử lý trong `setup-hub.sh`
 - Sao lưu PostgreSQL mỗi ngày (`pg_dump`), giữ 14 bản, lưu ra ngoài VPS. Thử khôi phục một lần trước khi mở beta
 - Giám sát: endpoint `/healthz`, Uptime Kuma hoặc dịch vụ tương đương, cảnh báo về email kythuat@hvn.vn
 
@@ -58,4 +60,4 @@ dependencies: [1, 2, 3, 4, 5, 6]
 
 ## File
 
-- Mới: `deploy/` (compose, Caddyfile, script backup), `docs/van-hanh.md`, `docs/dieu-khoan.md`
+- Mới: `deploy/` (compose cho Coolify, unit systemd cho wghub, script backup), `docs/van-hanh.md`, `docs/dieu-khoan.md`

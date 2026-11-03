@@ -19,7 +19,7 @@ PORT="${AOE_HUB_PORT:-51820}"
 
 if [ -z "${AOE_HUB_NO_INSTALL:-}" ]; then
   log "Cài WireGuard và nftables"
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wireguard-tools nftables >/dev/null
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wireguard-tools nftables iptables >/dev/null
 fi
 
 umask 077
@@ -58,16 +58,23 @@ fi
 sysctl -q -w net.ipv4.ip_forward=1
 
 if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
-  log "Mở cổng $PORT/udp trên ufw"
+  log "Mở cổng $PORT/udp và cho chuyển tiếp wg0 trên ufw"
   ufw allow "$PORT/udp" >/dev/null
+  ufw route allow in on "$IFACE" out on "$IFACE" >/dev/null
 fi
 
 if wg show "$IFACE" >/dev/null 2>&1; then
   sync_iface
   nft -f "$HUB_DIR/aoe-hub.nft"
+  eval "$FORWARD_RULE_UP"
 elif [ -n "${AOE_HUB_NO_SYSTEMD:-}" ]; then
   wg-quick up "$HUB_DIR/$IFACE.conf"
 else
+  # Start after Docker (if any) so its firewall setup at boot comes first.
+  # After= on a unit that does not exist is ignored.
+  mkdir -p "/etc/systemd/system/wg-quick@$IFACE.service.d"
+  printf '[Unit]\nAfter=docker.service\n' > "/etc/systemd/system/wg-quick@$IFACE.service.d/after-docker.conf"
+  systemctl daemon-reload
   systemctl enable --now "wg-quick@$IFACE" >/dev/null
 fi
 

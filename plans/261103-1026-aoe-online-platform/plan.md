@@ -32,6 +32,8 @@ Internet. Trải nghiệm giống Ego Play. Thêm danh sách bạn bè, lời m�
 | Phát hành | Beta nội bộ trước, chưa mở công khai |
 | Ký app | Mac: ký Developer ID và notarize bằng tài khoản Apple Developer của HVN. Windows: beta chạy bản chưa ký, chấp nhận cảnh báo SmartScreen |
 | Người thử phase 1 | Có máy Windows và người thử ở hai nơi |
+| Đơn vị vận hành | HVN Digital |
+| Máy chủ | VPS có Coolify (mới cài). Hub WireGuard chạy thẳng trên máy chủ; backend ở phase 2 trở đi triển khai bằng Coolify |
 
 ## Ràng buộc
 
@@ -121,7 +123,7 @@ cách làm trước khi đầu tư phase 2–7 (xem phương án dự phòng tro
 | App desktop | Wails v2 (Go + web UI) | Một code cho Mac và Windows. Dùng chung model với backend. Nhúng được `wireguard-go` |
 | Mạng ảo | WireGuard: `utun` trên Mac, Wintun trên Windows | Mã nguồn mở, nhanh, xuyên NAT tốt. Chạy trong helper có quyền admin |
 | Mở game | `aoelobby.exe` viết bằng C, build bằng mingw | Cùng một file chạy trên Windows và trong Wine trên Mac |
-| Hạ tầng | 1 VPS HVN Cloud (2 vCPU, 4 GB RAM), Docker Compose, Caddy (TLS) | Rẻ, đủ cho quy mô bản đầu |
+| Hạ tầng | VPS có Coolify (2 vCPU, 4 GB RAM): backend và PostgreSQL triển khai qua Coolify, TLS do proxy của Coolify cấp. Hub WireGuard chạy trên máy chủ (systemd) | Coolify đã có sẵn, quản lý deploy, biến môi trường và TLS |
 
 ## Mở rộng sau này (extension trace)
 
@@ -157,8 +159,7 @@ vào.
 
 ## Câu hỏi còn mở
 
-1. Công ty thành viên nào vận hành HVN AOE (HVN Digital, HVN Software)? Chỉ cần trả lời trước khi mở công khai.
-2. VPS cho `aoe.hvn.works`: dùng VPS HVN Cloud sẵn có hay tạo mới? Phase 1 cần một VPS Ubuntu 24.04 có IP công khai và mở cổng 51820/UDP.
+Không còn câu hỏi chặn phase 1. Cần IP của VPS và bản ghi DNS `aoe.hvn.works` trước khi dựng hub.
 
 ---
 

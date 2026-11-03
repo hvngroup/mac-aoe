@@ -21,6 +21,14 @@ load_settings() {
   . "$HUB_SETTINGS"
 }
 
+# Docker (installed by Coolify) and ufw set the iptables FORWARD policy to
+# DROP. Accepting wg0-to-wg0 there is harmless elsewhere: the aoe_hub
+# nftables table still decides which ports pass, and a packet must be
+# accepted by every table on the hook.
+FORWARD_RULE="FORWARD -i $IFACE -o $IFACE -j ACCEPT"
+FORWARD_RULE_UP="iptables -C $FORWARD_RULE 2>/dev/null || iptables -I $FORWARD_RULE"
+FORWARD_RULE_DOWN="iptables -D $FORWARD_RULE 2>/dev/null || true"
+
 # Rebuild the server config from the interface section and one file per peer,
 # so adding or removing a peer never edits wg0.conf by hand.
 render_wg_conf() {
@@ -34,6 +42,10 @@ ListenPort = $AOE_HUB_PORT
 PrivateKey = $(cat "$HUB_DIR/server.key")
 PostUp = nft -f $HUB_DIR/aoe-hub.nft
 PostDown = nft delete table inet aoe_hub
+CONF
+    cat <<CONF
+PostUp = $FORWARD_RULE_UP
+PostDown = $FORWARD_RULE_DOWN
 CONF
     for f in "$HUB_DIR"/peers/*.peer; do
       [ -f "$f" ] || continue
