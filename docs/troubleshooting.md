@@ -25,6 +25,7 @@ WINEDEBUG=err+all,fixme-all,+loaddll,+seh ~/mac-aoe/aoe-mac play
 | "Unable to create game. For TCP/IP games..." | DirectPlay của Wine chưa hỗ trợ tạo phòng (log có `DP_SecureOpen Unable to open session: DPERR_UNSUPPORTED`). Thử `aoe-mac directplay microsoft`. Xem mục Chơi mạng LAN |
 | Màn hình đen hoặc màu sai | Thử lần lượt `aoe-mac display cnc`, `cnc-window`, rồi `native` |
 | Game lag, chuột hoặc ô kéo chọn quân bị giật | 1) Chạy `aoe-mac play` không kèm `WINEDEBUG=...` (log chi tiết làm game chậm). 2) `aoe-mac display cnc` để ghi lại cấu hình mới (giới hạn 60 khung hình/giây). 3) `aoe-mac cursor system` để dùng con trỏ của macOS. 4) Nếu vẫn chậm, `aoe-mac display cnc-window` (cửa sổ nhỏ hơn thì phóng to ít hơn) |
+| Vẫn lag với renderer `gdi` | `gdi` phóng to hình bằng CPU. Thử `aoe-mac renderer opengl` (GPU phóng to, nhanh) kèm `aoe-mac tweak fixchilds=1` hoặc `fixchilds=0` để xem ô nhập liệu còn trắng không. Thử thêm `aoe-mac renderer direct3d9`. Không hợp thì quay về `aoe-mac renderer gdi` và `aoe-mac tweak --reset` |
 | Hình bị mờ hoặc muốn đổi bộ lọc | Sửa dòng `shader=` trong `drive_c/Games/AoE/ddraw.ini` (`Nearest neighbor`, `Bilinear`, `Lanczos`). Lưu ý `aoe-mac display`/`update` ghi lại file này |
 | Không có tiếng | Chạy `aoe-mac winecfg`, mở tab **Audio** và chọn thiết bị ra |
 | Phím `Ctrl+số` không gán nhóm quân | Dùng **Command trái** + số. Phím Ctrl thật vẫn dùng được nếu macOS không chiếm tổ hợp đó |

@@ -321,8 +321,77 @@ CNC_RENDERERS="gdi opengl openglcore direct3d9 auto"
 cnc_ddraw_configure() {
   local fullscreen="$1" renderer
   renderer="$(config_get CNC_RENDERER gdi)"
+  # CNC_TWEAKS holds "key=value;key=value" set with "aoe-mac tweak": each key
+  # replaces its line in every section that has it, or is added to [ddraw].
   sed -e "s/@FULLSCREEN@/$fullscreen/" -e "s/@RENDERER@/$renderer/" \
-    "$(toolkit_root)/templates/cnc-ddraw.ini.in" > "$AOE_GAME_DIR/ddraw.ini"
+    "$(toolkit_root)/templates/cnc-ddraw.ini.in" |
+    AOE_TWEAKS="$(config_get CNC_TWEAKS)" awk '
+      BEGIN {
+        n = split(ENVIRON["AOE_TWEAKS"], pairs, ";")
+        for (i = 1; i <= n; i++) {
+          if (pairs[i] == "") continue
+          eq = index(pairs[i], "=")
+          k = substr(pairs[i], 1, eq - 1); v = substr(pairs[i], eq + 1)
+          val[k] = v; order[++count] = k
+        }
+      }
+      function flush_ddraw(   j) {
+        for (j = 1; j <= count; j++) if (!(order[j] in seen)) print order[j] "=" val[order[j]]
+      }
+      /^\[/ { if (section == "ddraw") flush_ddraw(); section = substr($0, 2, index($0, "]") - 2) }
+      {
+        eq = index($0, "=")
+        if (eq > 1 && substr($0, 1, 1) != ";") {
+          k = substr($0, 1, eq - 1)
+          if (k in val) { if (section == "ddraw") seen[k] = 1; print k "=" val[k]; next }
+        }
+        print
+      }
+      END { if (section == "ddraw") flush_ddraw() }
+    ' > "$AOE_GAME_DIR/ddraw.ini"
+}
+
+reapply_cnc_config() {
+  case "$(current_display)" in
+    cnc) cnc_ddraw_configure true ;;
+    cnc-window) cnc_ddraw_configure false ;;
+    *) return 1 ;;
+  esac
+}
+
+# Expert knob for trying cnc-ddraw settings (see the comments in cnc-ddraw's
+# own ddraw.ini) without a new aoe-mac release.
+cmd_tweak() {
+  require_game
+  local arg="${1:-}" key value current new pair
+  current="$(config_get CNC_TWEAKS)"
+  case "$arg" in
+    "")
+      if [ -z "$current" ]; then echo "(chưa có tinh chỉnh nào)"; else printf '%s\n' "$current" | tr ';' '\n'; fi
+      return 0 ;;
+    --reset)
+      config_set CNC_TWEAKS ""
+      reapply_cnc_config || true
+      log "Đã xoá mọi tinh chỉnh cnc-ddraw."
+      return 0 ;;
+  esac
+  case "$arg" in
+    *=*) key="${arg%%=*}"; value="${arg#*=}" ;;
+    *) die "Cách dùng: aoe-mac tweak KEY=VALUE | aoe-mac tweak --reset" ;;
+  esac
+  printf '%s' "$key" | grep -Eq '^[A-Za-z0-9_]+$' || die "Tên tuỳ chọn không hợp lệ: $key"
+  case "$value" in *";"*) die "Giá trị không được chứa dấu ';'" ;; esac
+  case "$key" in renderer) die "Dùng 'aoe-mac renderer' để đổi renderer." ;; esac
+  new=""
+  local IFS=';'
+  for pair in $current; do
+    [ -n "$pair" ] && [ "${pair%%=*}" != "$key" ] && new="${new:+$new;}$pair"
+  done
+  unset IFS
+  [ -n "$value" ] && new="${new:+$new;}$key=$value"
+  config_set CNC_TWEAKS "$new"
+  reapply_cnc_config || warn "Tinh chỉnh chỉ có tác dụng ở chế độ cnc/cnc-window (aoe-mac display cnc)."
+  log "cnc-ddraw: $key=${value:-(mặc định)}"
 }
 
 cmd_renderer() {
@@ -335,11 +404,7 @@ cmd_renderer() {
   for r in $CNC_RENDERERS; do [ "$r" = "$renderer" ] && valid=1; done
   [ "$valid" -eq 1 ] || die "Renderer không hợp lệ: $renderer (chọn: $CNC_RENDERERS)"
   config_set CNC_RENDERER "$renderer"
-  case "$(current_display)" in
-    cnc) cnc_ddraw_configure true ;;
-    cnc-window) cnc_ddraw_configure false ;;
-    *) warn "Renderer chỉ có tác dụng ở chế độ cnc/cnc-window (aoe-mac display cnc)." ;;
-  esac
+  reapply_cnc_config || warn "Renderer chỉ có tác dụng ở chế độ cnc/cnc-window (aoe-mac display cnc)."
   log "Renderer cnc-ddraw: $renderer"
 }
 
@@ -627,7 +692,7 @@ write_log_header() {
   echo "command  : $exe $*"
   echo "balance  : $(current_balance || true)"
   echo "display  : $(current_display)"
-  echo "cnc-ddraw: $([ -f "$(cnc_ddraw_dll)" ] && echo "on, renderer=$(ini_get "$AOE_GAME_DIR/ddraw.ini" renderer)" || echo off)"
+  echo "cnc-ddraw: $([ -f "$(cnc_ddraw_dll)" ] && echo "on, renderer=$(ini_get "$AOE_GAME_DIR/ddraw.ini" renderer), tweaks=$(config_get CNC_TWEAKS)" || echo off)"
   echo "wndmode  : $([ -f "$AOE_GAME_DIR/data/wndmode.dll" ] && echo on || echo off) $(grep -E '^(UseWindowMode|CommandLine)=' "$AOE_GAME_DIR/data/wndmode.ini" 2>/dev/null | tr -d '\r' | tr '\n' ' ')"
   echo "directplay: $(config_get DIRECTPLAY wine)"
   echo "cursor   : $(config_get CURSOR game)"

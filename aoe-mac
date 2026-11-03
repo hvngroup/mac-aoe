@@ -43,6 +43,8 @@ Chơi
   renderer [gdi|opengl|direct3d9|auto]
                               Cách cnc-ddraw vẽ hình (mặc định gdi: ô nhập tên,
                               chat hiển thị đúng trên Mac)
+  tweak [KEY=VALUE|--reset]   Chỉnh trực tiếp tuỳ chọn cnc-ddraw (vd: fixchilds=1,
+                              maxfps=30, width=1920). Bỏ trống VALUE để xoá
   cursor [system|game]        Con trỏ chuột: system (mượt, do macOS vẽ) hoặc
                               game (con trỏ của game, mặc định)
   directplay [wine|microsoft] DirectPlay cho chơi mạng. wine (mặc định): vào phòng
@@ -141,6 +143,7 @@ main() {
     renderer) cmd_renderer "$@" ;;
     directplay) cmd_directplay "$@" ;;
     cursor) cmd_cursor "$@" ;;
+    tweak) cmd_tweak "$@" ;;
     winecfg) cmd_winecfg ;;
     stop) cmd_stop ;;
     build-app) cmd_build_app "$@" ;;
