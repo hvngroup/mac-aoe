@@ -43,6 +43,8 @@ Chơi
   renderer [gdi|opengl|direct3d9|auto]
                               Cách cnc-ddraw vẽ hình (mặc định gdi: ô nhập tên,
                               chat hiển thị đúng trên Mac)
+  cursor [system|game]        Con trỏ chuột: system (mượt, do macOS vẽ) hoặc
+                              game (con trỏ của game, mặc định)
   directplay [wine|microsoft] DirectPlay cho chơi mạng. wine (mặc định): vào phòng
                               được, chưa tạo phòng được. microsoft: bộ DirectPlay
                               đầy đủ của Microsoft (tải gói DirectX 2010, ~105 MB)
@@ -138,6 +140,7 @@ main() {
     display) cmd_display "$@" ;;
     renderer) cmd_renderer "$@" ;;
     directplay) cmd_directplay "$@" ;;
+    cursor) cmd_cursor "$@" ;;
     winecfg) cmd_winecfg ;;
     stop) cmd_stop ;;
     build-app) cmd_build_app "$@" ;;

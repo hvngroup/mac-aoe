@@ -1,0 +1,35 @@
+host rc=6 join rc=1
+===== host.log
+PASS: DirectPlayCreate (hr=0x00000000)
+PASS: QueryInterface(IID_IDirectPlay4A) (hr=0x00000000)
+PASS: DirectPlayLobbyCreateA (hr=0x00000000)
+PASS: QueryInterface(IID_IDirectPlayLobby3A) (hr=0x00000000)
+PASS: CreateCompoundAddress(TCP/IP) (hr=0x00000000)
+PASS: InitializeConnection(TCP/IP) (hr=0x00000000)
+PASS: host Open(DPOPEN_CREATE) (hr=0x00000000)
+PASS: host CreatePlayer(HostPlayer) (hr=0x00000000)
+INFO: host player id 0x000003ea
+READY
+INFO: host got system message DPSYS_CREATEPLAYERORGROUP (0x3)
+INFO:   new player 0x000003ea name=HostPlayer
+FAIL: host must not be notified about its own player (hr=0x00000000)
+INFO: joins=0 guaranteed=0 non-guaranteed=0 byes=0
+FAIL: host: every joiner's player created (hr=0x00000000)
+FAIL: host: guaranteed message received from every joiner (hr=0x00000000)
+FAIL: host: non-guaranteed messages received (hr=0x00000000)
+INFO: player 0x000003e9 name=(null) flags=0x80
+FAIL: host EnumPlayers lists only application players (hr=0x00000000)
+INFO: player 0x000003ea name=HostPlayer flags=0x0
+FAIL: host EnumPlayers sees host + joiner players (hr=0x00000000)
+RESULT: host FAILED (6 failures)
+===== join1.log
+PASS: DirectPlayCreate (hr=0x00000000)
+PASS: QueryInterface(IID_IDirectPlay4A) (hr=0x00000000)
+PASS: DirectPlayLobbyCreateA (hr=0x00000000)
+PASS: QueryInterface(IID_IDirectPlayLobby3A) (hr=0x00000000)
+PASS: CreateCompoundAddress(TCP/IP) (hr=0x00000000)
+PASS: InitializeConnection(TCP/IP) (hr=0x00000000)
+INFO: found session "WineHostTest" players 2/8
+INFO: EnumSessions try 0 hr=0x00000000
+PASS: joiner EnumSessions found WineHostTest (hr=0x00000000)
+FAIL: joiner Open(DPOPEN_JOIN) (hr=0x887700f0)

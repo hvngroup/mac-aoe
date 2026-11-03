@@ -1,0 +1,7 @@
+REGEDIT4
+
+; "Custom Mouse": 1 = the game draws its own cursor (moves only when a frame
+; is drawn), 0 = the system cursor (drawn by macOS, always smooth).
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Games\Age of Empires\1.00]
+"Custom Mouse"=dword:@CUSTOM_MOUSE@

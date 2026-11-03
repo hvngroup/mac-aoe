@@ -1,0 +1,27 @@
+0024:trace:dplay:DPWSCB_Open (1,00000000,0143B180,0,0x00000002,0x00000000)
+0108:trace:dplay:IDirectPlaySPImpl_HandleMessage Incoming message has envelope of 0x79616c70, 2, 11
+0108:trace:dplay:NS_ReplyToEnumSessionsRequest replying with session L"WineHostTest", 1/8 players
+0108:trace:dplay:DPWSCB_Reply replying to 192.0.2.2:2301
+0108:trace:dplay:IDirectPlaySPImpl_HandleMessage Incoming message has envelope of 0x79616c70, 5, 11
+0108:trace:dplay:DPWSCB_Reply replying to 192.0.2.2:2301
+0108:trace:dplay:IDirectPlaySPImpl_HandleMessage Incoming message has envelope of 0x79616c70, 19, 11
+0108:trace:dplay:DP_HandleAddForwardRequest Adding system player 0x000003eb from remote request
+0108:trace:dplay:DP_MSG_WriteSuperEnumPlayersReply Name table with 3 players and 0 groups, 332 bytes
+0108:trace:dplay:DPWSCB_Reply replying to 192.0.2.2:2301
+0108:trace:dplay:IDirectPlaySPImpl_HandleMessage Incoming message has envelope of 0x79616c70, 5, 11
+0108:trace:dplay:DPWSCB_Reply replying to 192.0.2.2:2301
+0108:trace:dplay:IDirectPlaySPImpl_HandleMessage Incoming message has envelope of 0x79616c70, 8, 11
+0108:trace:dplay:IDirectPlaySPImpl_HandleMessage Incoming message has envelope of 0x79616c70, 2, 11
+0108:trace:dplay:NS_ReplyToEnumSessionsRequest replying with session L"WineHostTest", 2/8 players
+0108:trace:dplay:DPWSCB_Reply replying to 192.0.2.2:2302
+0108:trace:dplay:IDirectPlaySPImpl_HandleMessage Incoming message has envelope of 0x79616c70, 5, 11
+0108:trace:dplay:DPWSCB_Reply replying to 192.0.2.2:2302
+0108:trace:dplay:IDirectPlaySPImpl_HandleMessage Incoming message has envelope of 0x79616c70, 19, 11
+0108:trace:dplay:DP_HandleAddForwardRequest Adding system player 0x000003ed from remote request
+0108:trace:dplay:DP_MSG_WriteSuperEnumPlayersReply Name table with 5 players and 0 groups, 468 bytes
+0108:trace:dplay:DPWSCB_Reply replying to 192.0.2.2:2302
+0108:trace:dplay:IDirectPlaySPImpl_HandleMessage Incoming message has envelope of 0x79616c70, 47, 11
+0108:trace:dplay:DP_HandleMessage Name table update acknowledged
+0108:trace:dplay:IDirectPlaySPImpl_HandleMessage Incoming message has envelope of 0x79616c70, 5, 11
+0108:trace:dplay:DPWSCB_Reply replying to 192.0.2.2:2302
+0108:trace:dplay:IDirectPlaySPImpl_HandleMessage Incoming message has envelope of 0x79616c70, 8, 11

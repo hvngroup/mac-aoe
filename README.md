@@ -64,6 +64,7 @@ Launchpad, rồi chọn **Chơi đơn**, **Chơi mạng LAN**, **Đổi bản c�
 | `aoe-mac display cnc` | Toàn màn hình qua cnc-ddraw, mặc định trên Mac. `cnc-window` để chơi trong cửa sổ |
 | `aoe-mac display native` | DirectDraw của Wine, đổi độ phân giải thật. `windowed`/`fullscreen` dùng `wndmode.dll` của game |
 | `aoe-mac renderer opengl` | Đổi cách cnc-ddraw vẽ hình (mặc định `gdi`, cần cho ô nhập tên và chat) |
+| `aoe-mac cursor system` | Dùng con trỏ chuột của macOS (mượt hơn khi game giật). `game` để quay lại con trỏ của game |
 | `aoe-mac update` | Lấy bản mới của game. Bản lưu và tuỳ chọn được giữ nguyên |
 | `aoe-mac doctor` | Kiểm tra môi trường khi gặp lỗi |
 | `aoe-mac stop` | Dừng game bị treo (hoặc nhấn Ctrl+C trong Terminal đang chạy game) |

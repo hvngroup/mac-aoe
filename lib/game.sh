@@ -180,6 +180,9 @@ apply_preferences() {
   dplay="$(config_get DIRECTPLAY)"
   [ "$dplay" = "native" ] && { dplay=microsoft; config_set DIRECTPLAY microsoft; }
   [ -n "$dplay" ] && set_directplay "$dplay"
+  local cursor
+  cursor="$(config_get CURSOR)"
+  [ -n "$cursor" ] && set_cursor "$cursor"
   return 0
 }
 
@@ -484,6 +487,35 @@ cmd_directplay() {
   fi
 }
 
+# Mouse cursor: the game's own (redrawn with each frame, choppy when the
+# frame rate drops) or the system one (smooth, drawn by macOS).
+set_cursor() {
+  local value tmpdir
+  case "$1" in
+    system) value=00000000 ;;
+    game) value=00000001 ;;
+    *) die "Giá trị không hợp lệ: $1 (chọn: system, game)" ;;
+  esac
+  tmpdir="$AOE_GAME_DIR/.aoe-mac"
+  mkdir -p "$tmpdir"
+  sed "s/@CUSTOM_MOUSE@/$value/" "$(toolkit_root)/templates/cursor.reg.in" > "$tmpdir/cursor.reg"
+  import_reg "$tmpdir/cursor.reg" || die "Không ghi được registry con trỏ chuột."
+  wine_wait
+}
+
+cmd_cursor() {
+  require_game
+  case "${1:-}" in
+    "") config_get CURSOR game; return 0 ;;
+    system|game) ;;
+    *) die "Giá trị không hợp lệ: $1 (chọn: system, game)" ;;
+  esac
+  require_wine
+  set_cursor "$1"
+  config_set CURSOR "$1"
+  log "Con trỏ chuột: $1"
+}
+
 # Modes that do not go through wndmode.dll need its flags passed directly.
 display_uses_wndmode() {
   case "$(current_display)" in windowed|fullscreen) return 0 ;; *) return 1 ;; esac
@@ -598,6 +630,7 @@ write_log_header() {
   echo "cnc-ddraw: $([ -f "$(cnc_ddraw_dll)" ] && echo "on, renderer=$(ini_get "$AOE_GAME_DIR/ddraw.ini" renderer)" || echo off)"
   echo "wndmode  : $([ -f "$AOE_GAME_DIR/data/wndmode.dll" ] && echo on || echo off) $(grep -E '^(UseWindowMode|CommandLine)=' "$AOE_GAME_DIR/data/wndmode.ini" 2>/dev/null | tr -d '\r' | tr '\n' ' ')"
   echo "directplay: $(config_get DIRECTPLAY wine)"
+  echo "cursor   : $(config_get CURSOR game)"
   echo "WINEDEBUG: ${WINEDEBUG:-$AOE_PLAY_WINEDEBUG}"
   echo "WINEDLLOVERRIDES: ${WINEDLLOVERRIDES:-}"
   echo "=== wine output ==="

@@ -140,6 +140,7 @@ run play; run logs
 assert_contains "cnc mode loads ddraw.dll from the game folder" "$WORK/out" "WINEDLLOVERRIDES=ddraw=n,b"
 assert_eq "cnc mode passes the wndmode flags to the game" "$GAME|C:\\Games\\AoE\\empires.exe nostartup systemmemory mfill" "$(tail -n 1 "$PREFIX/launches.log")"
 assert_eq "cnc uses the GDI renderer by default" "gdi" "$(grep '^renderer=' "$GAME/ddraw.ini" | cut -d= -f2)"
+assert_eq "cnc-ddraw presents at most 60 fps" "60" "$(grep '^maxfps=' "$GAME/ddraw.ini" | cut -d= -f2)"
 run renderer opengl; assert_eq "renderer command rewrites ddraw.ini" "opengl" "$(grep '^renderer=' "$GAME/ddraw.ini" | cut -d= -f2)"
 run renderer; assert_eq "renderer status" "opengl" "$(cat "$WORK/out")"
 run renderer vulkan; assert_eq "renderer rejects unknown values" "1" "$?"
@@ -149,6 +150,12 @@ run display; assert_eq "display status cnc-window" "cnc-window" "$(cat "$WORK/ou
 assert_eq "renderer choice survives display changes" "gdi" "$(grep '^renderer=' "$GAME/ddraw.ini" | cut -d= -f2)"
 run update; assert_file "update keeps cnc-ddraw" "$GAME/ddraw.dll"
 check_not "update keeps wndmode.dll off in cnc mode" test -e "$GAME/data/wndmode.dll"
+run cursor; assert_eq "cursor defaults to the game's" "game" "$(cat "$WORK/out")"
+run cursor system; assert_contains "system cursor turns Custom Mouse off" "$PREFIX/imported.reg" '"Custom Mouse"=dword:00000000'
+run cursor; assert_eq "cursor status" "system" "$(cat "$WORK/out")"
+: > "$PREFIX/imported.reg"; run update
+assert_contains "update re-applies the cursor choice" "$PREFIX/imported.reg" '"Custom Mouse"=dword:00000000'
+run cursor bogus; assert_eq "cursor rejects unknown values" "1" "$?"
 run directplay; assert_eq "DirectPlay defaults to Wine's" "wine" "$(cat "$WORK/out")"
 # Stand-in for Microsoft's DirectX redistributable: bsdtar auto-detects the
 # format, so a zip holding a zip named dxnt.cab exercises the same path.

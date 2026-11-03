@@ -20,7 +20,10 @@ renderer=@RENDERER@
 ; Upscaling filter, only used by the opengl renderer.
 shader=Bilinear
 vsync=false
-maxfps=-1
+; The game itself draws ~20-30 frames per second. Presenting at the screen
+; rate (120 Hz on ProMotion Macs) only multiplies the scaling work, which the
+; GDI renderer does on the CPU: cap it.
+maxfps=60
 ; Keep these settings authoritative instead of saving window state.
 savesettings=0
 
