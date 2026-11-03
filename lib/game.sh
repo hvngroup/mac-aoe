@@ -169,6 +169,12 @@ apply_preferences() {
   balance="$(config_get BALANCE)"
   display="$(config_get DISPLAY_MODE)"
   [ -n "$balance" ] && set_balance "$balance"
+  # Apple Silicon cannot switch to the game's low display modes, and the
+  # bundled wndmode.dll crashes under Rosetta: default to cnc-ddraw on macOS.
+  if [ -z "$display" ] && is_macos; then
+    display="cnc"
+    config_set DISPLAY_MODE "$display"
+  fi
   [ -n "$display" ] && set_display "$display"
   return 0
 }
@@ -250,42 +256,83 @@ cmd_balance() {
 # --- display ------------------------------------------------------------------
 
 # Display modes:
+#   cnc / cnc-window: cnc-ddraw (MIT, github.com/FunkyFr3sh/cnc-ddraw) replaces
+#     DirectDraw and scales the 8-bit picture into a borderless fullscreen or
+#     a window, so the real display mode never changes. Apple Silicon Macs no
+#     longer offer the low modes the game requests (black screen otherwise).
+#     Default on macOS.
 #   windowed / fullscreen: the game's bundled data\wndmode.dll wrapper drives
 #     DirectDraw (UseWindowMode=1/0 in data/wndmode.ini).
-#   native: wndmode.dll is switched off (renamed) and Wine's own DirectDraw
-#     draws the game fullscreen. wndmode.dll hooks ddraw/d3d/dinput/user32 by
-#     patching code, which can crash under Wine + Rosetta on Apple Silicon.
-WNDMODE_OFF_SUFFIX=".aoe-mac-off"
-# Flags wndmode.ini hands the game; native mode passes them directly:
+#   native: no wrapper; Wine's own DirectDraw switches the real display mode.
+# wndmode.dll hooks ddraw/d3d/dinput/user32 by patching code, which crashed
+# under Wine + Rosetta on Apple Silicon, so every mode but windowed/fullscreen
+# switches it off (renamed, never deleted).
+OFF_SUFFIX=".aoe-mac-off"
+# Flags wndmode.ini hands the game; modes without wndmode pass them directly:
 # nostartup skips the intro videos, systemmemory and mfill avoid DirectDraw
 # rendering glitches on modern systems.
 NATIVE_GAME_ARGS="nostartup systemmemory mfill"
 
-wndmode_enable() {
-  local dll="$AOE_GAME_DIR/data/wndmode.dll"
-  if [ ! -f "$dll" ] && [ -f "$dll$WNDMODE_OFF_SUFFIX" ]; then
-    mv "$dll$WNDMODE_OFF_SUFFIX" "$dll"
+AOE_CNC_DDRAW_URL_DEFAULT="https://github.com/FunkyFr3sh/cnc-ddraw/releases/download/v7.1.0.0/cnc-ddraw.zip"
+AOE_CNC_DDRAW_SHA256_DEFAULT="0b13ab89a64c9918189b1dadd449ef6ed3cb3b7b19cabd96d8adbd95505bb908"
+
+# file_enable PATH / file_disable PATH: toggle a DLL by renaming it.
+file_enable() {
+  if [ ! -f "$1" ] && [ -f "$1$OFF_SUFFIX" ]; then mv "$1$OFF_SUFFIX" "$1"; fi
+}
+file_disable() {
+  if [ -f "$1" ]; then mv -f "$1" "$1$OFF_SUFFIX"; fi
+}
+
+cnc_ddraw_dll() { printf '%s\n' "$AOE_GAME_DIR/ddraw.dll"; }
+
+# Download (once, checksum-verified) and place cnc-ddraw's ddraw.dll.
+cnc_ddraw_install() {
+  local url sha zip dll
+  dll="$(cnc_ddraw_dll)"
+  file_enable "$dll"
+  url="${AOE_CNC_DDRAW_URL:-$AOE_CNC_DDRAW_URL_DEFAULT}"
+  sha="${AOE_CNC_DDRAW_SHA256:-$AOE_CNC_DDRAW_SHA256_DEFAULT}"
+  zip="$AOE_CACHE/cnc-ddraw-$sha.zip"
+  if [ ! -f "$zip" ] || [ "$(sha256_of "$zip")" != "$sha" ]; then
+    need_cmd curl "Cần curl để tải cnc-ddraw."
+    mkdir -p "$AOE_CACHE"
+    log "Tải cnc-ddraw: $url"
+    curl -fsSL --retry 3 -o "$zip.part" "$url" || die "Tải cnc-ddraw thất bại."
+    mv "$zip.part" "$zip"
+  fi
+  [ "$(sha256_of "$zip")" = "$sha" ] || { rm -f "$zip"; die "SHA-256 của cnc-ddraw không khớp, đã xoá file tải."; }
+  if [ ! -f "$dll" ] || [ "$zip" -nt "$dll" ]; then
+    need_cmd unzip "Cần unzip để giải nén cnc-ddraw."
+    unzip -o -q -j "$zip" ddraw.dll -d "$AOE_GAME_DIR" || die "Giải nén cnc-ddraw thất bại."
+    touch "$dll"
   fi
 }
 
-wndmode_disable() {
-  local dll="$AOE_GAME_DIR/data/wndmode.dll"
-  if [ -f "$dll" ]; then
-    mv -f "$dll" "$dll$WNDMODE_OFF_SUFFIX"
-  fi
+cnc_ddraw_configure() {
+  local fullscreen="$1"
+  sed "s/@FULLSCREEN@/$fullscreen/" "$(toolkit_root)/templates/cnc-ddraw.ini.in" > "$AOE_GAME_DIR/ddraw.ini"
 }
 
 set_display() {
-  local ini="$AOE_GAME_DIR/data/wndmode.ini"
+  local ini="$AOE_GAME_DIR/data/wndmode.ini" wnd="$AOE_GAME_DIR/data/wndmode.dll"
   case "$1" in
-    windowed) wndmode_enable; ini_set "$ini" UseWindowMode 1 ;;
-    fullscreen) wndmode_enable; ini_set "$ini" UseWindowMode 0 ;;
-    native) wndmode_disable ;;
-    *) die "Chế độ hiển thị không hợp lệ: $1 (chọn: windowed, fullscreen, native)" ;;
+    cnc|cnc-window)
+      cnc_ddraw_install
+      if [ "$1" = "cnc" ]; then cnc_ddraw_configure true; else cnc_ddraw_configure false; fi
+      file_disable "$wnd" ;;
+    windowed) file_disable "$(cnc_ddraw_dll)"; file_enable "$wnd"; ini_set "$ini" UseWindowMode 1 ;;
+    fullscreen) file_disable "$(cnc_ddraw_dll)"; file_enable "$wnd"; ini_set "$ini" UseWindowMode 0 ;;
+    native) file_disable "$(cnc_ddraw_dll)"; file_disable "$wnd" ;;
+    *) die "Chế độ hiển thị không hợp lệ: $1 (chọn: cnc, cnc-window, windowed, fullscreen, native)" ;;
   esac
 }
 
 current_display() {
+  if [ -f "$(cnc_ddraw_dll)" ]; then
+    if [ "$(ini_get "$AOE_GAME_DIR/ddraw.ini" fullscreen)" = "true" ]; then echo cnc; else echo cnc-window; fi
+    return 0
+  fi
   if [ ! -f "$AOE_GAME_DIR/data/wndmode.dll" ]; then
     echo native
     return 0
@@ -294,6 +341,11 @@ current_display() {
     0) echo fullscreen ;;
     *) echo windowed ;;
   esac
+}
+
+# Modes that do not go through wndmode.dll need its flags passed directly.
+display_uses_wndmode() {
+  case "$(current_display)" in windowed|fullscreen) return 0 ;; *) return 1 ;; esac
 }
 
 cmd_display() {
@@ -321,10 +373,14 @@ cmd_play() {
   require_wine
   require_game
   if [ "$mode" = "multi" ]; then exe="EMPIRESX.EXE"; else exe="empires.exe"; fi
-  if [ $# -eq 0 ] && [ "$(current_display)" = "native" ]; then
+  if [ $# -eq 0 ] && ! display_uses_wndmode; then
     # shellcheck disable=SC2086  # intentional word splitting of the flag list
     set -- $NATIVE_GAME_ARGS
   fi
+  case "$(current_display)" in
+    # Wine prefers its builtin ddraw; load cnc-ddraw from the game folder.
+    cnc|cnc-window) WINEDLLOVERRIDES="ddraw=n,b${WINEDLLOVERRIDES:+;$WINEDLLOVERRIDES}"; export WINEDLLOVERRIDES ;;
+  esac
   mkdir -p "$AOE_LOG_DIR"
   logfile="$AOE_LOG_DIR/game-$(timestamp).log"
   log "Khởi động $exe (log: $logfile)"
@@ -356,8 +412,10 @@ write_log_header() {
   echo "command  : $exe $*"
   echo "balance  : $(current_balance || true)"
   echo "display  : $(current_display)"
+  echo "cnc-ddraw: $([ -f "$(cnc_ddraw_dll)" ] && echo on || echo off)"
   echo "wndmode  : $([ -f "$AOE_GAME_DIR/data/wndmode.dll" ] && echo on || echo off) $(grep -E '^(UseWindowMode|CommandLine)=' "$AOE_GAME_DIR/data/wndmode.ini" 2>/dev/null | tr -d '\r' | tr '\n' ' ')"
   echo "WINEDEBUG: ${WINEDEBUG:-err+all,fixme-all}"
+  echo "WINEDLLOVERRIDES: ${WINEDLLOVERRIDES:-}"
   echo "=== wine output ==="
 }
 

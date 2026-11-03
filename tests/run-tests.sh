@@ -88,6 +88,13 @@ unset AOE_PREFIX
 PREFIX="$AOE_HOME/prefix"
 GAME="$PREFIX/drive_c/Games/AoE"
 make_fixture "$WORK/src"
+# Local stand-in for the cnc-ddraw release zip.
+mkdir -p "$WORK/cnc" && echo cncdll > "$WORK/cnc/ddraw.dll" && echo ini > "$WORK/cnc/ddraw.ini"
+(cd "$WORK/cnc" && zip -q ../cnc-ddraw.zip ddraw.dll ddraw.ini)
+sha256() { if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'; else sha256sum "$1" | awk '{print $1}'; fi; }
+export AOE_CNC_DDRAW_URL="file://$WORK/cnc-ddraw.zip"
+export AOE_CNC_DDRAW_SHA256
+AOE_CNC_DDRAW_SHA256="$(sha256 "$WORK/cnc-ddraw.zip")"
 
 run status --quiet; assert_eq "status --quiet fails before install" "1" "$?"
 run play; assert_eq "play refuses before install" "1" "$?"
@@ -96,6 +103,9 @@ assert_eq "install succeeds" "0" "$rc"
 [ "$rc" -eq 0 ] || cat "$WORK/out"
 assert_file "game copied" "$GAME/empires.exe"
 assert_file "AI scripts copied" "$GAME/data2/Default.ai"
+if [ "$(uname -s)" = "Darwin" ]; then
+  run display; assert_eq "macOS install defaults to cnc-ddraw" "cnc" "$(cat "$WORK/out")"
+fi
 if [ -e "$GAME/.git" ] || [ -e "$GAME/data2_daominah" ] || [ -e "$GAME/README.md" ]; then
   fail "repo-only files excluded"
 else
@@ -121,6 +131,25 @@ run play single custom; assert_eq "explicit game args win over native defaults" 
 run update; check_not "update keeps wndmode.dll off in native mode" test -e "$GAME/data/wndmode.dll"
 run display windowed; assert_file "windowed mode restores wndmode.dll" "$GAME/data/wndmode.dll"
 run display fullscreen
+run display cnc; assert_eq "cnc mode places cnc-ddraw's ddraw.dll" "cncdll" "$(cat "$GAME/ddraw.dll" 2>/dev/null)"
+assert_eq "cnc mode is borderless fullscreen" "true" "$(grep '^fullscreen=' "$GAME/ddraw.ini" | cut -d= -f2)"
+assert_contains "cnc config keeps AoE's own section" "$GAME/ddraw.ini" "[empires]"
+check_not "cnc mode switches wndmode.dll off" test -e "$GAME/data/wndmode.dll"
+run display; assert_eq "display status cnc" "cnc" "$(cat "$WORK/out")"
+run play; run logs
+assert_contains "cnc mode loads ddraw.dll from the game folder" "$WORK/out" "WINEDLLOVERRIDES=ddraw=n,b"
+assert_eq "cnc mode passes the wndmode flags to the game" "$GAME|C:\\Games\\AoE\\empires.exe nostartup systemmemory mfill" "$(tail -n 1 "$PREFIX/launches.log")"
+run display cnc-window; assert_eq "cnc-window mode is windowed" "false" "$(grep '^fullscreen=' "$GAME/ddraw.ini" | cut -d= -f2)"
+run display; assert_eq "display status cnc-window" "cnc-window" "$(cat "$WORK/out")"
+run update; assert_file "update keeps cnc-ddraw" "$GAME/ddraw.dll"
+check_not "update keeps wndmode.dll off in cnc mode" test -e "$GAME/data/wndmode.dll"
+run display fullscreen; check_not "wndmode modes switch cnc-ddraw off" test -e "$GAME/ddraw.dll"
+assert_file "wndmode modes restore wndmode.dll" "$GAME/data/wndmode.dll"
+run play; run logs
+check_not "wndmode modes do not override ddraw" grep -q "WINEDLLOVERRIDES=ddraw" "$WORK/out"
+rm -f "$AOE_HOME/cache"/cnc-ddraw-*.zip "$GAME/ddraw.dll.aoe-mac-off"
+AOE_CNC_DDRAW_SHA256=0000 run display cnc; assert_eq "cnc download rejected on checksum mismatch" "1" "$?"
+check_not "nothing installed after checksum mismatch" test -e "$GAME/ddraw.dll"
 
 echo usersave > "$GAME/savegame/mine.gmx"
 echo changed > "$WORK/src/data2/Default.ai"

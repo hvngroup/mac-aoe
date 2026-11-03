@@ -1,0 +1,34 @@
+; cnc-ddraw settings written by aoe-mac (https://github.com/FunkyFr3sh/cnc-ddraw).
+; The game keeps asking DirectDraw for low 8-bit display modes that Apple
+; Silicon Macs no longer offer; cnc-ddraw draws into a normal window instead
+; and scales the picture, so the real display mode never changes.
+
+[ddraw]
+; fullscreen=true together with windowed=true is borderless fullscreen (scaled).
+windowed=true
+fullscreen=@FULLSCREEN@
+maintas=true
+boxing=false
+border=true
+resizable=true
+adjmouse=true
+; OpenGL directly: one layer less than direct3d9 on top of Wine's wined3d.
+renderer=opengl
+shader=Bilinear
+vsync=false
+maxfps=-1
+; Keep these settings authoritative instead of saving window state.
+savesettings=0
+
+; Per-game sections copied from cnc-ddraw's own ddraw.ini.
+; Age of Empires
+[empires]
+nonexclusive=true
+adjmouse=true
+resolutions=2
+
+; Age of Empires: The Rise of Rome
+[empiresx]
+nonexclusive=true
+adjmouse=true
+resolutions=2

@@ -19,9 +19,10 @@ WINEDEBUG=err+all,fixme-all ~/mac-aoe/aoe-mac play
 | `Rosetta 2: THIẾU` trên máy M1–M4 | `softwareupdate --install-rosetta --agree-to-license` |
 | macOS báo "không thể mở vì không xác minh được nhà phát triển" khi mở `AoE RoR.app` | Chuột phải vào app, chọn **Mở**, rồi chọn **Mở** lần nữa. Chỉ cần làm một lần |
 | `git clone thất bại` | Repo game có thể đang private. Đăng nhập GitHub bằng `gh auth login` hoặc cấu hình SSH key, rồi chạy lại `aoe-mac install` |
-| Game thoát với mã 1 sau vài giây, log có `nested exception on signal stack` | `aoe-mac display native` rồi chơi lại. Chế độ này tắt `wndmode.dll` (thư viện hook DirectDraw của game, dễ xung đột với Wine qua Rosetta) và bỏ qua video mở đầu |
-| Màn hình đen hoặc màu sai | Đổi chế độ hiển thị: `aoe-mac display fullscreen`, hoặc ngược lại `windowed` |
-| Cửa sổ quá nhỏ trên màn hình Retina | Dùng `aoe-mac display fullscreen`. macOS sẽ phóng to độ phân giải của game |
+| Game thoát với mã 1 sau vài giây, log có `nested exception on signal stack` | `aoe-mac display cnc` rồi chơi lại. Chế độ này tắt `wndmode.dll` (thư viện hook DirectDraw của game, xung đột với Wine qua Rosetta) và bỏ qua video mở đầu |
+| Vào được màn hình chính, bấm menu thì màn hình đen | Máy Mac chip Apple không còn các độ phân giải thấp mà game xin đổi. Dùng `aoe-mac display cnc` (cnc-ddraw phóng to hình vào màn hình, không đổi độ phân giải thật) |
+| Màn hình đen hoặc màu sai | Thử lần lượt `aoe-mac display cnc`, `cnc-window`, rồi `native` |
+| Hình bị mờ hoặc muốn đổi bộ lọc | Sửa dòng `shader=` trong `drive_c/Games/AoE/ddraw.ini` (`Nearest neighbor`, `Bilinear`, `Lanczos`). Lưu ý `aoe-mac display`/`update` ghi lại file này |
 | Không có tiếng | Chạy `aoe-mac winecfg`, mở tab **Audio** và chọn thiết bị ra |
 | Phím `Ctrl+số` không gán nhóm quân | Dùng **Command trái** + số. Phím Ctrl thật vẫn dùng được nếu macOS không chiếm tổ hợp đó |
 | Game treo khi thoát | Đóng hết tiến trình Wine của game: `WINEPREFIX="$HOME/Library/Application Support/AoE-Mac/prefix" "$HOME/Library/Application Support/AoE-Mac/wine/Wine Staging.app/Contents/Resources/wine/bin/wineserver" -k` |

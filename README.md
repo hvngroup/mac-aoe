@@ -60,7 +60,8 @@ Launchpad, rồi chọn **Chơi đơn**, **Chơi mạng LAN**, **Đổi bản c�
 | `aoe-mac play multi` | Chơi mạng (`EMPIRESX.EXE`, chống cheat) |
 | `aoe-mac balance de` | Đổi bản cân bằng: `ror`, `de`, `mace`, `original` |
 | `aoe-mac balance` | Xem bản cân bằng đang dùng |
-| `aoe-mac display native` | Toàn màn hình bằng DirectDraw của Wine, tắt `wndmode.dll` (dùng khi game sập lúc mở). `windowed`/`fullscreen` để quay lại `wndmode.dll` |
+| `aoe-mac display cnc` | Toàn màn hình qua cnc-ddraw, mặc định trên Mac. `cnc-window` để chơi trong cửa sổ |
+| `aoe-mac display native` | DirectDraw của Wine, đổi độ phân giải thật. `windowed`/`fullscreen` dùng `wndmode.dll` của game |
 | `aoe-mac update` | Lấy bản mới của game. Bản lưu và tuỳ chọn được giữ nguyên |
 | `aoe-mac doctor` | Kiểm tra môi trường khi gặp lỗi |
 | `aoe-mac winecfg` | Mở cấu hình Wine (âm thanh, đồ hoạ) |
@@ -106,7 +107,9 @@ Wine thật trên Linux.
 
 ## Bản quyền
 
-Repo này chỉ chứa script. Age of Empires là tài sản của Microsoft. Bộ công cụ
+Repo này chỉ chứa script. Khi cài, bộ công cụ tải thêm Wine (LGPL) và
+[cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw) (MIT), cả hai đều được ghim
+phiên bản và kiểm tra SHA-256. Age of Empires là tài sản của Microsoft. Bộ công cụ
 không kèm file game; nó lấy game từ nguồn bạn chỉ định, và bạn chịu trách nhiệm
 về quyền sử dụng bản game đó.
 

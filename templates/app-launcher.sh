@@ -86,11 +86,13 @@ case "$action" in
     exit 0 ;;
   4)
     picked="$(choose "Chế độ hiển thị (đang dùng: $("$AOE_MAC" display))" \
-      "native - Toàn màn hình bằng DirectDraw của Wine (ổn định nhất trên Mac)" \
-      "windowed - Cửa sổ (qua wndmode.dll của game)" \
-      "fullscreen - Toàn màn hình (qua wndmode.dll của game)")"
+      "cnc - Toàn màn hình qua cnc-ddraw (khuyên dùng trên Mac)" \
+      "cnc-window - Cửa sổ qua cnc-ddraw" \
+      "windowed - Cửa sổ qua wndmode.dll của game" \
+      "fullscreen - Toàn màn hình qua wndmode.dll của game" \
+      "native - DirectDraw của Wine, đổi độ phân giải thật")"
     case "$picked" in
-      1) next=native ;; 2) next=windowed ;; 3) next=fullscreen ;;
+      1) next=cnc ;; 2) next=cnc-window ;; 3) next=windowed ;; 4) next=fullscreen ;; 5) next=native ;;
       *) exit 0 ;;
     esac
     "$AOE_MAC" display "$next" && dialog "Chế độ hiển thị: $next"

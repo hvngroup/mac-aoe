@@ -35,9 +35,11 @@ Chơi
                               single = empires.exe (mặc định), multi = EMPIRESX.EXE
   balance [ror|de|mace|original|status|current]
                               Đổi bản cân bằng dữ liệu (empires.dat)
-  display [windowed|fullscreen|native]
-                              Chơi trong cửa sổ, toàn màn hình, hoặc native
-                              (tắt wndmode.dll, dùng DirectDraw của Wine)
+  display [cnc|cnc-window|windowed|fullscreen|native]
+                              cnc: toàn màn hình qua cnc-ddraw (mặc định trên Mac)
+                              cnc-window: cửa sổ qua cnc-ddraw
+                              windowed/fullscreen: qua wndmode.dll của game
+                              native: DirectDraw của Wine, đổi độ phân giải thật
   winecfg                     Mở cấu hình Wine (âm thanh, đồ hoạ)
 
 Hệ thống

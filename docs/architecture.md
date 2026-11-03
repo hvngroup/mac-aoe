@@ -58,6 +58,18 @@ trị trong `templates/aoe-registry.reg.in` lấy từ phân tích tĩnh file
 bằng `C:\windows\syswow64\regedit.exe` để rơi vào view 32-bit mà game đọc. Lệnh
 `aoe-mac doctor` kiểm tra lại bằng `reg query /reg:32`.
 
+**Hiển thị trên Apple Silicon.** Game DirectDraw 8-bit liên tục xin đổi sang các
+độ phân giải thấp (640x480, 800x600), mà máy Mac chip Apple không còn cung cấp.
+Vì vậy màn hình chính hiện được nhưng các màn hình sau đen. Chế độ mặc định trên
+macOS là `cnc`: bộ công cụ tải [cnc-ddraw](https://github.com/FunkyFr3sh/cnc-ddraw)
+(ghim v7.1.0.0 kèm SHA-256), đặt `ddraw.dll` vào thư mục game, ghi `ddraw.ini` từ
+`templates/cnc-ddraw.ini.in` và chạy game với `WINEDLLOVERRIDES=ddraw=n,b`.
+cnc-ddraw vẽ vào cửa sổ (hoặc borderless toàn màn hình) và phóng to hình, nên độ
+phân giải thật không bao giờ đổi. Ở mọi chế độ trừ `windowed`/`fullscreen`,
+`wndmode.dll` bị đổi tên để tắt, vì nó sửa code hệ thống và làm game sập dưới
+Rosetta. Các tham số `nostartup systemmemory mfill` vốn do `wndmode.ini` truyền
+được truyền thẳng vào game.
+
 **Chế độ cửa sổ.** `empires.exe` tự nạp `data\wndmode.dll`. File
 `data/wndmode.ini` điều khiển nó (`UseWindowMode=1` là chơi trong cửa sổ). Lệnh
 `aoe-mac display` chỉ sửa khoá này và giữ nguyên kiểu xuống dòng CRLF của file.
