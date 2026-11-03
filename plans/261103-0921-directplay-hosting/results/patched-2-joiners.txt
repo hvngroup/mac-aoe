@@ -1,0 +1,90 @@
+host rc=0 join rc=0
+===== host.log
+PASS: DirectPlayCreate (hr=0x00000000)
+PASS: QueryInterface(IID_IDirectPlay4A) (hr=0x00000000)
+PASS: DirectPlayLobbyCreateA (hr=0x00000000)
+PASS: QueryInterface(IID_IDirectPlayLobby3A) (hr=0x00000000)
+PASS: CreateCompoundAddress(TCP/IP) (hr=0x00000000)
+PASS: InitializeConnection(TCP/IP) (hr=0x00000000)
+PASS: host Open(DPOPEN_CREATE) (hr=0x00000000)
+PASS: host CreatePlayer(HostPlayer) (hr=0x00000000)
+INFO: host player id 0x000003ea
+READY
+INFO: host got system message DPSYS_CREATEPLAYERORGROUP (0x3)
+INFO:   new player 0x000003ec name=JoinPlayer1
+PASS: host saw remote player join (DPSYS_CREATEPLAYERORGROUP) (hr=0x00000000)
+INFO: host got app message from 0x000003ec to 0x000003ea: "unreliable from joiner"
+PASS: host received non-guaranteed message from joiner (hr=0x00000000)
+INFO: host got app message from 0x000003ec to 0x000003ea: "hello from joiner"
+PASS: host received guaranteed message from joiner (hr=0x00000000)
+PASS: host Send(guaranteed) reply to joiner (hr=0x00000000)
+INFO: host got system message DPSYS_CREATEPLAYERORGROUP (0x3)
+INFO:   new player 0x000003ee name=JoinPlayer2
+PASS: host saw remote player join (DPSYS_CREATEPLAYERORGROUP) (hr=0x00000000)
+INFO: host got app message from 0x000003ee to 0x000003ea: "hello from joiner"
+PASS: host received guaranteed message from joiner (hr=0x00000000)
+PASS: host Send(guaranteed) reply to joiner (hr=0x00000000)
+INFO: host got app message from 0x000003ee to 0x000003ea: "unreliable from joiner"
+PASS: host received non-guaranteed message from joiner (hr=0x00000000)
+INFO: host got app message from 0x000003ee to 0x000003ea: "unreliable from joiner"
+INFO: host got app message from 0x000003ec to 0x000003ea: "unreliable from joiner"
+INFO: host got app message from 0x000003ee to 0x000003ea: "bye"
+INFO: host got app message from 0x000003ec to 0x000003ea: "bye"
+INFO: joins=2 guaranteed=2 non-guaranteed=4 byes=2
+PASS: host: every joiner's player created (hr=0x00000000)
+PASS: host: guaranteed message received from every joiner (hr=0x00000000)
+PASS: host: non-guaranteed messages received (hr=0x00000000)
+INFO: player 0x000003ea name=HostPlayer flags=0x0
+INFO: player 0x000003ec name=JoinPlayer1 flags=0x0
+INFO: player 0x000003ee name=JoinPlayer2 flags=0x0
+PASS: host EnumPlayers sees host + joiner players (hr=0x00000000)
+RESULT: host OK (0 failures)
+===== join1.log
+PASS: DirectPlayCreate (hr=0x00000000)
+PASS: QueryInterface(IID_IDirectPlay4A) (hr=0x00000000)
+PASS: DirectPlayLobbyCreateA (hr=0x00000000)
+PASS: QueryInterface(IID_IDirectPlayLobby3A) (hr=0x00000000)
+PASS: CreateCompoundAddress(TCP/IP) (hr=0x00000000)
+PASS: InitializeConnection(TCP/IP) (hr=0x00000000)
+INFO: found session "WineHostTest" players 1/8
+INFO: EnumSessions try 0 hr=0x00000000
+PASS: joiner EnumSessions found WineHostTest (hr=0x00000000)
+PASS: joiner Open(DPOPEN_JOIN) (hr=0x00000000)
+PASS: joiner CreatePlayer (hr=0x00000000)
+INFO: joiner player id 0x000003ec
+INFO: player 0x000003ea name=HostPlayer flags=0x0
+INFO: player 0x000003ec name=JoinPlayer1 flags=0x0
+PASS: joiner EnumPlayers sees HostPlayer (hr=0x00000000)
+PASS: joiner Send(guaranteed) to host (hr=0x00000000)
+PASS: joiner Send(non-guaranteed) to host (hr=0x00000000)
+INFO: joiner got app message from 0x000003ea: "hello from host"
+PASS: joiner received host reply (hr=0x00000000)
+INFO: joiner got system message DPSYS_CREATEPLAYERORGROUP
+INFO:   new player 0x000003ee name=JoinPlayer2
+PASS: joiner saw another joiner arrive (hr=0x00000000)
+INFO: joiner got app message from 0x000003ee: "hello peer"
+PASS: joiner received message from the other joiner (hr=0x00000000)
+RESULT: joiner OK (0 failures)
+===== join2.log
+PASS: DirectPlayCreate (hr=0x00000000)
+PASS: QueryInterface(IID_IDirectPlay4A) (hr=0x00000000)
+PASS: DirectPlayLobbyCreateA (hr=0x00000000)
+PASS: QueryInterface(IID_IDirectPlayLobby3A) (hr=0x00000000)
+PASS: CreateCompoundAddress(TCP/IP) (hr=0x00000000)
+PASS: InitializeConnection(TCP/IP) (hr=0x00000000)
+INFO: found session "WineHostTest" players 2/8
+INFO: EnumSessions try 0 hr=0x00000000
+PASS: joiner EnumSessions found WineHostTest (hr=0x00000000)
+PASS: joiner Open(DPOPEN_JOIN) (hr=0x00000000)
+PASS: joiner CreatePlayer (hr=0x00000000)
+INFO: joiner player id 0x000003ee
+INFO: player 0x000003ea name=HostPlayer flags=0x0
+INFO: player 0x000003ec name=JoinPlayer1 flags=0x0
+INFO: player 0x000003ee name=JoinPlayer2 flags=0x0
+PASS: joiner EnumPlayers sees HostPlayer (hr=0x00000000)
+PASS: joiner Send(guaranteed) to host (hr=0x00000000)
+PASS: joiner Send(non-guaranteed) to host (hr=0x00000000)
+INFO: joiner got app message from 0x000003ea: "hello from host"
+PASS: joiner received host reply (hr=0x00000000)
+PASS: joiner Send(guaranteed) to the other joiner (hr=0x00000000)
+RESULT: joiner OK (0 failures)
