@@ -373,7 +373,12 @@ cmd_directplay() {
     "") config_get DIRECTPLAY wine ;;
     wine|native)
       config_set DIRECTPLAY "$1"
-      log "DirectPlay: $1" ;;
+      log "DirectPlay: $1"
+      if [ "$1" = "native" ]; then
+        warn "Trên macOS (Wine 11.21), dplayx.dll của Microsoft đi kèm game đã làm game treo lúc khởi động. Quay lại bằng: aoe-mac directplay wine"
+      else
+        log "DirectPlay của Wine vào được phòng (Join) nhưng chưa tạo được phòng (Create): Wine chưa viết phần này."
+      fi ;;
     *) die "Giá trị không hợp lệ: $1 (chọn: wine, native)" ;;
   esac
 }

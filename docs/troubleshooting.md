@@ -22,7 +22,7 @@ WINEDEBUG=err+all,fixme-all,+loaddll,+seh ~/mac-aoe/aoe-mac play
 | Game thoát với mã 1 sau vài giây, log có `nested exception on signal stack` | `aoe-mac display cnc` rồi chơi lại. Chế độ này tắt `wndmode.dll` (thư viện hook DirectDraw của game, xung đột với Wine qua Rosetta) và bỏ qua video mở đầu |
 | Vào được màn hình chính, bấm menu thì màn hình đen | Máy Mac chip Apple không còn các độ phân giải thấp mà game xin đổi. Dùng `aoe-mac display cnc` (cnc-ddraw phóng to hình vào màn hình, không đổi độ phân giải thật) |
 | Ô nhập tên hoặc chat làm màn hình chuyển trắng | `aoe-mac renderer gdi` (mặc định từ 0.2.1). Driver Mac của Wine không vẽ được ô nhập liệu đè lên hình OpenGL |
-| "Unable to create game. For TCP/IP games..." | `aoe-mac directplay native`, rồi thử lại. Nếu vẫn lỗi, gửi log mạng (xem mục Chơi mạng LAN) |
+| "Unable to create game. For TCP/IP games..." | Giới hạn của Wine: DirectPlay TCP/IP của Wine chưa hỗ trợ tạo phòng (log có `DP_SecureOpen Unable to open session: DPERR_UNSUPPORTED`). Máy Mac vào phòng do máy khác tạo được. Xem mục Chơi mạng LAN |
 | Màn hình đen hoặc màu sai | Thử lần lượt `aoe-mac display cnc`, `cnc-window`, rồi `native` |
 | Hình bị mờ hoặc muốn đổi bộ lọc | Sửa dòng `shader=` trong `drive_c/Games/AoE/ddraw.ini` (`Nearest neighbor`, `Bilinear`, `Lanczos`). Lưu ý `aoe-mac display`/`update` ghi lại file này |
 | Không có tiếng | Chạy `aoe-mac winecfg`, mở tab **Audio** và chọn thiết bị ra |
@@ -32,15 +32,28 @@ WINEDEBUG=err+all,fixme-all,+loaddll,+seh ~/mac-aoe/aoe-mac play
 
 ## Chơi mạng LAN
 
-`EMPIRESX.EXE` dùng DirectPlay qua TCP/IP. Wine có DirectPlay riêng, nên chơi
-mạng giữa các máy Mac cùng chạy `mac-aoe` có thể hoạt động. Chơi chéo với máy
-Windows chưa được kiểm chứng. Nếu gặp lỗi:
+`EMPIRESX.EXE` (và mục Multiplayer của `empires.exe`) dùng DirectPlay qua TCP/IP.
+Bộ công cụ dùng DirectPlay của Wine, với tình trạng như sau (đối chiếu mã nguồn
+`dlls/dpwsockx/dpwsockx_main.c` của Wine 11.21, giống hệt bản master):
 
-1. Cho phép Wine nhận kết nối khi macOS hỏi về tường lửa.
-2. Thử DirectPlay của Microsoft đi kèm game thay cho bản của Wine:
-   `aoe-mac directplay native` (quay lại bằng `aoe-mac directplay wine`).
-3. Lấy log mạng chi tiết rồi gửi bộ phận kỹ thuật:
+| Việc | Trên Mac |
+|------|----------|
+| Tìm phòng (Show Games), vào phòng (Join) | Wine đã viết phần này |
+| Tạo phòng (Create) | Chưa được: Wine trả về `session creation is not yet supported` |
+
+Cách chơi hiện tại: một máy **Windows** tạo phòng, các máy Mac vào phòng bằng
+TCP/IP (nhập IP của máy tạo phòng nếu không thấy trong danh sách).
+
+Nếu vào phòng không được:
+
+1. Cho phép Wine truy cập mạng cục bộ (Local Network) khi macOS hỏi. Kiểm tra lại
+   trong **System Settings > Privacy & Security > Local Network**.
+2. Lấy log mạng chi tiết rồi gửi bộ phận kỹ thuật:
    `WINEDEBUG=err+all,+dplay,+winsock aoe-mac play multi`, sau đó `aoe-mac logs`.
+
+`aoe-mac directplay native` dùng `dplayx.dll` của Microsoft đi kèm game. Trên
+macOS 27 với Wine 11.21, lựa chọn này đã làm game treo lúc khởi động. Nó chỉ còn
+lại để thử nghiệm.
 
 ## Kiểm thử chấp nhận (UAT) trên máy Mac thật
 
@@ -53,7 +66,7 @@ nhật và tạo app. Phần chạy game trên Mac thật cần người kiểm 
 - [ ] Chơi một ván Random Map 15 phút: âm thanh, cuộn bản đồ, chọn nhóm quân
 - [ ] Bug reset ruộng (`S`) vẫn hoạt động
 - [ ] Đổi bản cân bằng `de`, vào game và thấy chỉ số đã đổi
-- [ ] Chơi LAN giữa 2 máy Mac
+- [ ] Máy Mac vào phòng do máy Windows tạo (LAN)
 - [ ] Lưu game, `aoe-mac update`, mở lại bản lưu
 
 Gửi kết quả và log về kythuat@hvn.vn.
