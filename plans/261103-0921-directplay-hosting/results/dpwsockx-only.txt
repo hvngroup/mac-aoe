@@ -1,4 +1,0 @@
-/home/user/mac-aoe/plans/261103-0921-directplay-hosting/tests/run-host-join-test.sh: line 36: out-final-mixed/host.log: No such file or directory
-grep: out-final-mixed/host.log: No such file or directory
-/home/user/mac-aoe/plans/261103-0921-directplay-hosting/tests/run-host-join-test.sh: line 45: out-final-mixed/join1.log: No such file or directory
-host rc=1 join rc=99

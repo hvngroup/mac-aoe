@@ -1,4 +1,11 @@
-/home/user/mac-aoe/plans/261103-0921-directplay-hosting/tests/run-host-join-test.sh: line 36: out-final-baseline/host.log: No such file or directory
-grep: out-final-baseline/host.log: No such file or directory
-/home/user/mac-aoe/plans/261103-0921-directplay-hosting/tests/run-host-join-test.sh: line 45: out-final-baseline/join1.log: No such file or directory
 host rc=1 join rc=99
+===== host.log
+PASS: DirectPlayCreate (hr=0x00000000)
+PASS: QueryInterface(IID_IDirectPlay4A) (hr=0x00000000)
+PASS: DirectPlayLobbyCreateA (hr=0x00000000)
+PASS: QueryInterface(IID_IDirectPlayLobby3A) (hr=0x00000000)
+PASS: CreateCompoundAddress(TCP/IP) (hr=0x00000000)
+PASS: InitializeConnection(TCP/IP) (hr=0x00000000)
+FAIL: host Open(DPOPEN_CREATE) (hr=0x80004001)
+===== join1.log
+host never became ready
